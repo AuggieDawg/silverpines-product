@@ -690,24 +690,30 @@ model ManagedPropertyMember {
 }
 
 model ManagedGarage {
-  id                        String                     @id @default(cuid())
-  propertyId                String
-  garageCode                String                     @unique
-  label                     String?
-  locationLabel             String?
-  notes                     String?
-  isActive                  Boolean                    @default(true)
-  property                  ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  linkedUnits               ManagedUnit[]              @relation("UnitGarageLink")
-  accessCodes               UnitAccessCode[]
-  keys                      UnitKey[]
-  documents                 ManagedDocument[]
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
-  preventiveMaintenanceRuns PreventiveMaintenanceRun[]
+  id                String                     @id @default(cuid())
+  propertyId        String
+  garageCode        String                     @unique
+  label             String?
+  locationLabel     String?
+  status            ManagedUnitStatus          @default(Vacant)
+  notesSummary      String?
+  notes             String?
+  lastRepairAt      DateTime?
+  lastMaintenanceAt DateTime?
+  isActive          Boolean                    @default(true)
+  property          ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  linkedUnits       ManagedUnit[]              @relation("UnitGarageLink")
+  repairs           UnitRepairEvent[]
+  maintenanceRuns   PreventiveMaintenanceRun[]
+  accessCodes       UnitAccessCode[]
+  keys              UnitKey[]
+  documents         ManagedDocument[]
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
 
   @@index([propertyId])
   @@index([propertyId, garageCode])
+  @@index([status])
 }
 
 model ManagedUnit {
@@ -770,7 +776,8 @@ model ManagedVendor {
 model UnitRepairEvent {
   id            String       @id @default(cuid())
   propertyId    String
-  unitId        String
+  unitId        String?
+  garageId      String?
   vendorId      String?
   title         String
   category      String
@@ -786,12 +793,14 @@ model UnitRepairEvent {
   updatedAt     DateTime     @updatedAt
 
   property  ManagedProperty   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  unit      ManagedUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  unit      ManagedUnit?      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  garage    ManagedGarage?    @relation(fields: [garageId], references: [id], onDelete: SetNull)
   vendor    ManagedVendor?    @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   documents ManagedDocument[]
 
   @@index([propertyId])
   @@index([unitId, openedAt])
+  @@index([garageId, openedAt])
   @@index([status])
   @@index([vendorId])
 }

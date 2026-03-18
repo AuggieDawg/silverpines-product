@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "make-admin": "ts-node scripts/make-admin.ts",
-    "seed:security-demo": "ts-node scripts/seed-security-demo.ts"
+    "seed:security-demo": "ts-node scripts/seed-security-demo.ts",
+    "seed:silverpines": "ts-node scripts/seed-silverpines.ts"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

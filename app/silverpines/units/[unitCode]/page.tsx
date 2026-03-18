@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import UnitHistoryPage from "@/components/silverpines/UnitHistoryPage";
-import { silverPinesUnits } from "@/components/silverpines/mock-data";
+import { getManagedAssetByCode } from "@/lib/silverpines/data";
+
+export const dynamic = "force-dynamic";
 
 export default async function SilverPinesUnitPage({
   params,
@@ -10,7 +12,7 @@ export default async function SilverPinesUnitPage({
   const { unitCode } = await params;
   const decodedUnitCode = decodeURIComponent(unitCode);
 
-  const unit = silverPinesUnits.find((item) => item.unitCode === decodedUnitCode);
+  const unit = await getManagedAssetByCode(decodedUnitCode);
 
   if (!unit) {
     notFound();

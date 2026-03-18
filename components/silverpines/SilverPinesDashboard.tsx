@@ -1,12 +1,14 @@
-"use client";
+"use client"
 
 import { useMemo, useState } from "react";
 import { FileSpreadsheet, Plus, SearchCheck, Wrench } from "lucide-react";
 import PropertyFilters from "@/components/silverpines/PropertyFilters";
 import SummaryKpiStrip from "@/components/silverpines/SummaryKpiStrip";
 import UnitRegistryTable from "@/components/silverpines/UnitRegistryTable";
-import { silverPinesUnits } from "@/components/silverpines/mock-data";
-import type { SilverPinesFilters } from "@/components/silverpines/types";
+import type {
+  ManagedUnitRecord,
+  SilverPinesFilters,
+} from "@/components/silverpines/types";
 
 const initialFilters: SilverPinesFilters = {
   query: "",
@@ -20,15 +22,20 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleDateString();
 }
 
-export default function SilverPinesDashboard() {
+export default function SilverPinesDashboard({
+  initialRows,
+}: {
+  initialRows: ManagedUnitRecord[];
+}) {
   const [filters, setFilters] = useState<SilverPinesFilters>(initialFilters);
 
   const filteredRows = useMemo(() => {
     const query = filters.query.trim().toLowerCase();
 
-    return silverPinesUnits.filter((unit) => {
+    return initialRows.filter((unit) => {
       if (filters.status !== "ALL" && unit.status !== filters.status) return false;
       if (filters.unitKind !== "ALL" && unit.unitKind !== filters.unitKind) return false;
+
       if (
         unit.unitKind === "APARTMENT" &&
         filters.garageIndicator !== "ALL" &&
@@ -55,34 +62,28 @@ export default function SilverPinesDashboard() {
 
       return haystack.includes(query);
     });
-  }, [filters]);
+  }, [filters, initialRows]);
 
-  const totalApartments = silverPinesUnits.filter((item) => item.unitKind === "APARTMENT").length;
-  const totalGarages = silverPinesUnits.filter((item) => item.unitKind === "GARAGE").length;
-  const openIssues = silverPinesUnits.reduce((sum, item) => sum + item.openIssuesCount, 0);
-  const dueSoonCount = silverPinesUnits.reduce(
-    (sum, item) =>
-      sum +
-      item.maintenance.filter((event) =>
-        ["Upcoming", "DueSoon", "Overdue"].includes(event.status)
-      ).length,
-    0
-  );
-  const ytdCost = silverPinesUnits.reduce((sum, item) => sum + item.ytdRepairCost, 0);
+  const totalApartments = initialRows.filter((item) => item.unitKind === "APARTMENT").length;
+  const totalGarages = initialRows.filter((item) => item.unitKind === "GARAGE").length;
+  const openIssues = initialRows.reduce((sum, item) => sum + item.openIssuesCount, 0);
+  const ytdCost = initialRows.reduce((sum, item) => sum + item.ytdRepairCost, 0);
 
-  const recentActivity = [...silverPinesUnits]
-    .flatMap((unit) =>
-      unit.repairs.map((repair) => ({
-        unitCode: unit.unitCode,
-        title: repair.title,
-        status: repair.status,
-        openedAt: repair.openedAt,
-      }))
-    )
-    .sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime())
+  const dueSoonCount = initialRows.reduce((sum, item) => {
+    if (!item.nextScheduledMaintenance) return sum;
+    return sum + 1;
+  }, 0);
+
+  const recentActivity = [...initialRows]
+    .filter((unit) => unit.lastRepairAt)
+    .sort((a, b) => {
+      const aTime = new Date(a.lastRepairAt ?? 0).getTime();
+      const bTime = new Date(b.lastRepairAt ?? 0).getTime();
+      return bTime - aTime;
+    })
     .slice(0, 5);
 
-  const dueSoonUnits = silverPinesUnits
+  const dueSoonUnits = [...initialRows]
     .filter((unit) => unit.nextScheduledMaintenance)
     .sort((a, b) => {
       const aTime = new Date(a.nextScheduledMaintenance ?? 0).getTime();
@@ -130,7 +131,7 @@ export default function SilverPinesDashboard() {
       </section>
 
       <SummaryKpiStrip
-        totalRecords={silverPinesUnits.length}
+        totalRecords={initialRows.length}
         totalApartments={totalApartments}
         totalGarages={totalGarages}
         openIssues={openIssues}
@@ -152,31 +153,36 @@ export default function SilverPinesDashboard() {
               <div>
                 <h2 className="text-lg font-semibold text-white">Recent repair activity</h2>
                 <p className="text-sm text-neutral-400">
-                  Latest visible events across the current SilverPines sample set.
+                  Latest visible repair events across SilverPines.
                 </p>
               </div>
             </div>
 
             <div className="mt-5 space-y-3">
-              {recentActivity.map((item) => (
-                <div
-                  key={`${item.unitCode}-${item.title}-${item.openedAt}`}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-white">{item.title}</p>
-                      <p className="mt-1 text-sm text-neutral-400">{item.unitCode}</p>
+              {recentActivity.length > 0 ? (
+                recentActivity.map((item) => (
+                  <div
+                    key={`${item.unitCode}-${item.lastRepairAt}`}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-white">{item.unitCode}</p>
+                        <p className="mt-1 text-sm text-neutral-400">
+                          {item.notesSummary ?? "No summary yet."}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">
+                        {formatDate(item.lastRepairAt)}
+                      </span>
                     </div>
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">
-                      {item.status}
-                    </span>
                   </div>
-                  <p className="mt-2 text-xs uppercase tracking-[0.22em] text-neutral-500">
-                    Opened {formatDate(item.openedAt)}
-                  </p>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-neutral-500">
+                  No repair activity available yet.
                 </div>
-              ))}
+              )}
             </div>
           </section>
 
@@ -187,24 +193,30 @@ export default function SilverPinesDashboard() {
             </p>
 
             <div className="mt-5 space-y-3">
-              {dueSoonUnits.map((unit) => (
-                <div
-                  key={`${unit.unitCode}-${unit.nextScheduledMaintenance}`}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-white">{unit.unitCode}</p>
-                      <p className="mt-1 text-sm text-neutral-400">
-                        {unit.notesSummary ?? "No summary yet."}
-                      </p>
+              {dueSoonUnits.length > 0 ? (
+                dueSoonUnits.map((unit) => (
+                  <div
+                    key={`${unit.unitCode}-${unit.nextScheduledMaintenance}`}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-white">{unit.unitCode}</p>
+                        <p className="mt-1 text-sm text-neutral-400">
+                          {unit.notesSummary ?? "No summary yet."}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300">
+                        {formatDate(unit.nextScheduledMaintenance)}
+                      </span>
                     </div>
-                    <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300">
-                      {formatDate(unit.nextScheduledMaintenance)}
-                    </span>
                   </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-neutral-500">
+                  No scheduled maintenance is currently loaded.
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </div>
