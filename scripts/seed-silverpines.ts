@@ -3,8 +3,12 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   GarageIndicator,
+  InspectionSetStatus,
   MaintenanceFrequency,
   MaintenanceStatus,
+  ManagedPhotoCategory,
+  ManagedPhotoRoomTag,
+  ManagedPhotoSubjectType,
   PrismaClient,
   RepairStatus,
   UnitAccessType,
@@ -89,6 +93,8 @@ async function main() {
   });
 
   await prisma.$transaction([
+    prisma.managedPhoto.deleteMany({ where: { propertyId: property.id } }),
+    prisma.inspectionSet.deleteMany({ where: { propertyId: property.id } }),
     prisma.managedDocument.deleteMany({ where: { propertyId: property.id } }),
     prisma.unitNote.deleteMany({ where: { propertyId: property.id } }),
     prisma.unitAccessCode.deleteMany({ where: { propertyId: property.id } }),
@@ -653,8 +659,7 @@ async function main() {
         unitId: unitA101.id,
         name: "unit-a101-maintenance-log.xlsx",
         originalFileName: "unit-a101-maintenance-log.xlsx",
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         category: "Spreadsheet",
         summary: "Running maintenance ledger.",
         storageKey: "seed/silver/a101/unit-a101-maintenance-log.xlsx",
@@ -675,12 +680,93 @@ async function main() {
         unitId: unitC301.id,
         name: "turn-punchlist-c301.xlsx",
         originalFileName: "turn-punchlist-c301.xlsx",
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         category: "Spreadsheet",
         summary: "Turn punch list with appliance checks.",
         storageKey: "seed/silver/c301/turn-punchlist-c301.xlsx",
         fileSizeBytes: 98304,
+      },
+    ],
+  });
+
+  const inspectionA101 = await prisma.inspectionSet.create({
+    data: {
+      propertyId: property.id,
+      unitId: unitA101.id,
+      createdByUserId: user.id,
+      code: "SP-INSP-A101-20260318",
+      title: "A101 move-through inspection",
+      description: "Kitchen, bathroom, and entry condition check.",
+      status: InspectionSetStatus.Open,
+      startedAt: new Date("2026-03-18T15:00:00.000Z"),
+    },
+  });
+
+  const inspectionG03 = await prisma.inspectionSet.create({
+    data: {
+      propertyId: property.id,
+      garageId: garage03.id,
+      createdByUserId: user.id,
+      code: "SP-INSP-G03-20260318",
+      title: "Garage 03 mechanical follow-up",
+      description: "Spring and track condition review.",
+      status: InspectionSetStatus.Open,
+      startedAt: new Date("2026-03-18T16:00:00.000Z"),
+    },
+  });
+
+  await prisma.managedPhoto.createMany({
+    data: [
+      {
+        propertyId: property.id,
+        unitId: unitA101.id,
+        inspectionSetId: inspectionA101.id,
+        uploadedByUserId: user.id,
+        category: ManagedPhotoCategory.Inspection,
+        subjectType: ManagedPhotoSubjectType.Unit,
+        roomTag: ManagedPhotoRoomTag.Kitchen,
+        caption: "Under-sink plumbing area before follow-up inspection.",
+        originalFileName: "a101-kitchen-under-sink-01.jpg",
+        mimeType: "image/jpeg",
+        storageKey: "seed/silver/a101/photos/a101-kitchen-under-sink-01.jpg",
+        width: 1600,
+        height: 1200,
+        fileSizeBytes: 248500,
+        takenAt: new Date("2026-03-18T15:02:00.000Z"),
+      },
+      {
+        propertyId: property.id,
+        unitId: unitA101.id,
+        inspectionSetId: inspectionA101.id,
+        uploadedByUserId: user.id,
+        category: ManagedPhotoCategory.Inspection,
+        subjectType: ManagedPhotoSubjectType.Unit,
+        roomTag: ManagedPhotoRoomTag.Bathroom,
+        caption: "Bathroom vanity and plumbing face-on view.",
+        originalFileName: "a101-bathroom-01.jpg",
+        mimeType: "image/jpeg",
+        storageKey: "seed/silver/a101/photos/a101-bathroom-01.jpg",
+        width: 1600,
+        height: 1200,
+        fileSizeBytes: 221300,
+        takenAt: new Date("2026-03-18T15:06:00.000Z"),
+      },
+      {
+        propertyId: property.id,
+        garageId: garage03.id,
+        inspectionSetId: inspectionG03.id,
+        uploadedByUserId: user.id,
+        category: ManagedPhotoCategory.Damage,
+        subjectType: ManagedPhotoSubjectType.Garage,
+        roomTag: ManagedPhotoRoomTag.Garage,
+        caption: "Garage spring noise follow-up reference shot.",
+        originalFileName: "g03-spring-01.jpg",
+        mimeType: "image/jpeg",
+        storageKey: "seed/silver/g03/photos/g03-spring-01.jpg",
+        width: 1600,
+        height: 1200,
+        fileSizeBytes: 208900,
+        takenAt: new Date("2026-03-18T16:10:00.000Z"),
       },
     ],
   });
@@ -693,6 +779,8 @@ async function main() {
   console.log("- 4 garages");
   console.log("- 3 vendors");
   console.log("- repairs, maintenance runs, access codes, keys, notes, and documents");
+  console.log("- 2 inspection sets");
+  console.log("- 3 managed photos");
   console.log("");
   console.log(
     "Important: codeCiphertext is DEV_ONLY placeholder data. Replace with real encryption before production."

@@ -209,6 +209,54 @@ enum ManagedDocumentCategory {
   Other
 }
 
+enum ManagedPhotoCategory {
+  General
+  Inspection
+  Before
+  After
+  Damage
+  Turnover
+  Appliance
+  Exterior
+  Safety
+  Receipt
+  Other
+}
+
+enum ManagedPhotoSubjectType {
+  Property
+  Unit
+  Garage
+  Repair
+  Maintenance
+}
+
+enum ManagedPhotoRoomTag {
+  Unknown
+  Exterior
+  Entry
+  LivingRoom
+  Kitchen
+  DiningRoom
+  Hallway
+  Bathroom
+  Bedroom
+  Laundry
+  Utility
+  Garage
+  Balcony
+  Patio
+  Closet
+  Mechanical
+  Other
+}
+
+enum InspectionSetStatus {
+  Open
+  InReview
+  Closed
+}
+
 model User {
   id                          String                   @id @default(cuid())
   email                       String                   @unique
@@ -232,6 +280,8 @@ model User {
   managedPropertiesOwned      ManagedProperty[]        @relation("ManagedPropertyOwner")
   managedPropertyMemberships  ManagedPropertyMember[]
   managedAuditLogsAsActor     ManagedAuditLog[]        @relation("ManagedAuditLogActor")
+  managedPhotosUploaded       ManagedPhoto[]           @relation("ManagedPhotoUploadedBy")
+  inspectionSetsCreated       InspectionSet[]          @relation("InspectionSetCreatedBy")
 }
 
 model Profile {
@@ -669,6 +719,8 @@ model ManagedProperty {
   unitAccessCodes           UnitAccessCode[]
   unitKeys                  UnitKey[]
   unitNotes                 UnitNote[]
+  inspectionSets            InspectionSet[]
+  photos                    ManagedPhoto[]
 
   @@index([ownerId])
   @@index([ownerId, updatedAt])
@@ -710,6 +762,8 @@ model ManagedGarage {
   documents         ManagedDocument[]
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
+  inspectionSets    InspectionSet[]
+  photos            ManagedPhoto[]
 
   @@index([propertyId])
   @@index([propertyId, garageCode])
@@ -744,6 +798,8 @@ model ManagedUnit {
   keys            UnitKey[]
   documents       ManagedDocument[]
   notes           UnitNote[]
+  inspectionSets  InspectionSet[]
+  photos          ManagedPhoto[]
 
   @@index([propertyId])
   @@index([propertyId, unitCode])
@@ -774,7 +830,7 @@ model ManagedVendor {
 }
 
 model UnitRepairEvent {
-  id            String       @id @default(cuid())
+  id            String         @id @default(cuid())
   propertyId    String
   unitId        String?
   garageId      String?
@@ -782,15 +838,16 @@ model UnitRepairEvent {
   title         String
   category      String
   priority      String
-  status        RepairStatus @default(Reported)
+  status        RepairStatus   @default(Reported)
   description   String?
-  openedAt      DateTime     @default(now())
+  openedAt      DateTime       @default(now())
   scheduledFor  DateTime?
   completedAt   DateTime?
-  estimatedCost Decimal?     @db.Decimal(10, 2)
-  actualCost    Decimal?     @db.Decimal(10, 2)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  estimatedCost Decimal?       @db.Decimal(10, 2)
+  actualCost    Decimal?       @db.Decimal(10, 2)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  photos        ManagedPhoto[]
 
   property  ManagedProperty   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   unit      ManagedUnit?      @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -806,25 +863,98 @@ model UnitRepairEvent {
 }
 
 model PreventiveMaintenancePlan {
-  id           String               @id @default(cuid())
+  id           String                     @id @default(cuid())
   propertyId   String
   title        String
   category     String
   description  String?
   frequency    MaintenanceFrequency
   intervalDays Int?
-  targetScope  String               @default("UNIT")
-  isActive     Boolean              @default(true)
+  targetScope  String                     @default("UNIT")
+  isActive     Boolean                    @default(true)
   nextDueAt    DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-
-  property ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  runs     PreventiveMaintenanceRun[]
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  photos       ManagedPhoto[]
+  property     ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  runs         PreventiveMaintenanceRun[]
 
   @@index([propertyId])
   @@index([propertyId, isActive])
   @@index([nextDueAt])
+}
+
+model InspectionSet {
+  id              String              @id @default(cuid())
+  propertyId      String
+  unitId          String?
+  garageId        String?
+  createdByUserId String?
+  code            String              @unique
+  title           String
+  description     String?
+  status          InspectionSetStatus @default(Open)
+  startedAt       DateTime            @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  property      ManagedProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit          ManagedUnit?    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  garage        ManagedGarage?  @relation(fields: [garageId], references: [id], onDelete: SetNull)
+  createdByUser User?           @relation("InspectionSetCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  photos        ManagedPhoto[]
+
+  @@index([propertyId, startedAt])
+  @@index([unitId, startedAt])
+  @@index([garageId, startedAt])
+  @@index([createdByUserId, startedAt])
+  @@index([status])
+}
+
+model ManagedPhoto {
+  id               String                  @id @default(cuid())
+  propertyId       String
+  unitId           String?
+  garageId         String?
+  repairEventId    String?
+  maintenanceRunId String?
+  inspectionSetId  String?
+  uploadedByUserId String?
+  category         ManagedPhotoCategory    @default(General)
+  subjectType      ManagedPhotoSubjectType @default(Unit)
+  roomTag          ManagedPhotoRoomTag     @default(Unknown)
+  caption          String?
+  originalFileName String?
+  mimeType         String
+  storageKey       String
+  width            Int?
+  height           Int?
+  fileSizeBytes    Int?
+  takenAt          DateTime?
+  uploadedAt       DateTime                @default(now())
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  property                    ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit                        ManagedUnit?               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  garage                      ManagedGarage?             @relation(fields: [garageId], references: [id], onDelete: SetNull)
+  repairEvent                 UnitRepairEvent?           @relation(fields: [repairEventId], references: [id], onDelete: SetNull)
+  maintenanceRun              PreventiveMaintenanceRun?  @relation(fields: [maintenanceRunId], references: [id], onDelete: SetNull)
+  inspectionSet               InspectionSet?             @relation(fields: [inspectionSetId], references: [id], onDelete: SetNull)
+  uploadedByUser              User?                      @relation("ManagedPhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  preventiveMaintenancePlan   PreventiveMaintenancePlan? @relation(fields: [preventiveMaintenancePlanId], references: [id])
+  preventiveMaintenancePlanId String?
+
+  @@index([propertyId, uploadedAt])
+  @@index([unitId, uploadedAt])
+  @@index([garageId, uploadedAt])
+  @@index([inspectionSetId, uploadedAt])
+  @@index([repairEventId, uploadedAt])
+  @@index([maintenanceRunId, uploadedAt])
+  @@index([uploadedByUserId, uploadedAt])
+  @@index([category])
+  @@index([roomTag])
 }
 
 model PreventiveMaintenanceRun {
@@ -846,12 +976,13 @@ model PreventiveMaintenanceRun {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  property  ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  unit      ManagedUnit?               @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  garage    ManagedGarage?             @relation(fields: [garageId], references: [id], onDelete: SetNull)
-  plan      PreventiveMaintenancePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
-  vendor    ManagedVendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  documents ManagedDocument[]
+  property      ManagedProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit          ManagedUnit?               @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  garage        ManagedGarage?             @relation(fields: [garageId], references: [id], onDelete: SetNull)
+  plan          PreventiveMaintenancePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  vendor        ManagedVendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  documents     ManagedDocument[]
+  managedPhotos ManagedPhoto[]
 
   @@index([propertyId])
   @@index([unitId, dueAt])

@@ -29,6 +29,38 @@ export type AccessType =
   | "Utility"
   | "Other";
 
+export type ManagedPhotoCategory =
+  | "General"
+  | "Inspection"
+  | "Before"
+  | "After"
+  | "Damage"
+  | "Turnover"
+  | "Appliance"
+  | "Exterior"
+  | "Safety"
+  | "Receipt"
+  | "Other";
+
+export type ManagedPhotoRoomTag =
+  | "Unknown"
+  | "Exterior"
+  | "Entry"
+  | "LivingRoom"
+  | "Kitchen"
+  | "DiningRoom"
+  | "Hallway"
+  | "Bathroom"
+  | "Bedroom"
+  | "Laundry"
+  | "Utility"
+  | "Garage"
+  | "Balcony"
+  | "Patio"
+  | "Closet"
+  | "Mechanical"
+  | "Other";
+
 export interface UnitRepairEvent {
   id: string;
   title: string;
@@ -90,6 +122,34 @@ export interface ManagedDocumentRecord {
   summary?: string;
 }
 
+export interface ManagedPhotoRecord {
+  id: string;
+  category: ManagedPhotoCategory;
+  roomTag: ManagedPhotoRoomTag;
+  caption?: string;
+  originalFileName?: string;
+  mimeType: string;
+  storageKey: string;
+  width?: number;
+  height?: number;
+  fileSizeBytes?: number;
+  takenAt?: string;
+  uploadedAt: string;
+  uploadedByName?: string;
+  inspectionSetCode?: string;
+}
+
+export interface InspectionSetRecord {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  status: "Open" | "InReview" | "Closed";
+  startedAt: string;
+  completedAt?: string;
+  photoCount: number;
+}
+
 export interface ManagedUnitRecord {
   unitCode: string;
   propertyCode: string;
@@ -113,6 +173,8 @@ export interface ManagedUnitRecord {
   accessCodes: AccessCodeRecord[];
   keys: UnitKeyRecord[];
   documents: ManagedDocumentRecord[];
+  photos: ManagedPhotoRecord[];
+  inspectionSets: InspectionSetRecord[];
   notes: string[];
 }
 

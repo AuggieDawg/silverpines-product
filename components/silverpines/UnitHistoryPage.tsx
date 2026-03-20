@@ -1,18 +1,27 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Camera,
+  ClipboardList,
   FileText,
   KeyRound,
   ShieldCheck,
   Wrench,
-  ClipboardList,
 } from "lucide-react";
 import type { ManagedUnitRecord } from "@/components/silverpines/types";
 
-type TabKey = "overview" | "repairs" | "maintenance" | "access" | "files";
+type TabKey =
+  | "overview"
+  | "repairs"
+  | "maintenance"
+  | "access"
+  | "files"
+  | "photos"
+  | "inspectionSets";
 
 interface UnitHistoryPageProps {
   unit: ManagedUnitRecord;
@@ -32,6 +41,13 @@ function formatCurrency(value?: number) {
   }).format(value);
 }
 
+function formatPhotoSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
   const [tab, setTab] = useState<TabKey>("overview");
 
@@ -42,6 +58,8 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
       { key: "maintenance" as const, label: "Maintenance", icon: ShieldCheck },
       { key: "access" as const, label: "Access", icon: KeyRound },
       { key: "files" as const, label: "Files", icon: FileText },
+      { key: "photos" as const, label: "Photos", icon: Camera },
+      { key: "inspectionSets" as const, label: "Inspection Sets", icon: ClipboardList },
     ],
     []
   );
@@ -70,7 +88,7 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
               Full operational history for this {unit.unitKind.toLowerCase()} record,
               including repairs, preventive maintenance, access controls, key tracking,
-              and uploaded documents.
+              uploaded documents, photos, and inspection sets.
             </p>
           </div>
 
@@ -134,18 +152,9 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
               <InfoCard label="Unit number" value={unit.unitNumber} />
               <InfoCard label="Asset type" value={unit.unitKind} />
               <InfoCard label="Last repair" value={formatDate(unit.lastRepairAt)} />
-              <InfoCard
-                label="Last maintenance"
-                value={formatDate(unit.lastMaintenanceAt)}
-              />
-              <InfoCard
-                label="Next maintenance"
-                value={formatDate(unit.nextScheduledMaintenance)}
-              />
-              <InfoCard
-                label="Linked garage"
-                value={unit.linkedGarageCode ?? "No linked garage"}
-              />
+              <InfoCard label="Last maintenance" value={formatDate(unit.lastMaintenanceAt)} />
+              <InfoCard label="Next maintenance" value={formatDate(unit.nextScheduledMaintenance)} />
+              <InfoCard label="Linked garage" value={unit.linkedGarageCode ?? "No linked garage"} />
             </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -209,10 +218,7 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
                   <InfoCard label="Scheduled" value={formatDate(repair.scheduledFor)} />
                   <InfoCard label="Completed" value={formatDate(repair.completedAt)} />
                   <InfoCard label="Vendor" value={repair.vendorName ?? "—"} />
-                  <InfoCard
-                    label="Estimated cost"
-                    value={formatCurrency(repair.estimatedCost)}
-                  />
+                  <InfoCard label="Estimated cost" value={formatCurrency(repair.estimatedCost)} />
                   <InfoCard label="Actual cost" value={formatCurrency(repair.actualCost)} />
                 </div>
               </div>
@@ -245,10 +251,7 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
                   <InfoCard label="Due" value={formatDate(event.dueAt)} />
                   <InfoCard label="Completed" value={formatDate(event.completedAt)} />
                   <InfoCard label="Vendor" value={event.vendorName ?? "—"} />
-                  <InfoCard
-                    label="Estimated cost"
-                    value={formatCurrency(event.estimatedCost)}
-                  />
+                  <InfoCard label="Estimated cost" value={formatCurrency(event.estimatedCost)} />
                   <InfoCard label="Actual cost" value={formatCurrency(event.actualCost)} />
                   <InfoCard label="Notes" value={event.notes ?? "—"} />
                 </div>
@@ -380,6 +383,120 @@ export default function UnitHistoryPage({ unit }: UnitHistoryPageProps) {
               ))
             ) : (
               <EmptyPanel text="No documents uploaded yet." />
+            )}
+          </div>
+        </section>
+      )}
+
+      {tab === "photos" && (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Photos</h2>
+              <p className="mt-1 text-sm text-neutral-400">
+                Apartment and garage photo records with captions, room tags, and inspection linkage.
+              </p>
+            </div>
+
+            <Link
+              href={`/silverpines/units/${encodeURIComponent(unit.unitCode)}/capture`}
+              className="inline-flex items-center rounded-2xl border border-sky-300/20 bg-sky-400/15 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/20"
+            >
+              Add Photo
+            </Link>
+          </div>
+
+          {unit.photos.length > 0 ? (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {unit.photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-black/30">
+                    <Image
+                      src={photo.storageKey}
+                      alt={photo.caption ?? photo.originalFileName ?? "SilverPines photo"}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm font-medium text-white">
+                      {photo.caption ?? photo.originalFileName ?? "Untitled photo"}
+                    </p>
+
+                    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                      {photo.category} • {photo.roomTag}
+                    </p>
+
+                    <p className="text-xs text-neutral-400">
+                      Uploaded {formatDate(photo.uploadedAt)}
+                      {photo.uploadedByName ? ` • ${photo.uploadedByName}` : ""}
+                    </p>
+
+                    <p className="text-xs text-neutral-500">
+                      {formatPhotoSize(photo.fileSizeBytes)}
+                      {photo.takenAt ? ` • Taken ${formatDate(photo.takenAt)}` : ""}
+                    </p>
+
+                    {photo.inspectionSetCode && (
+                      <p className="text-xs text-sky-300">
+                        Inspection set: {photo.inspectionSetCode}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5">
+              <EmptyPanel text="No photos uploaded yet." />
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "inspectionSets" && (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h2 className="text-lg font-semibold text-white">Inspection Sets</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Grouped field inspections for this asset.
+          </p>
+
+          <div className="mt-5 space-y-3">
+            {unit.inspectionSets.length > 0 ? (
+              unit.inspectionSets.map((set) => (
+                <div
+                  key={set.id}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-white">{set.title}</p>
+                      <p className="mt-1 text-sm text-neutral-400">
+                        {set.code}
+                        {set.description ? ` • ${set.description}` : ""}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-neutral-300">
+                      {set.status}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs uppercase tracking-[0.18em] text-neutral-500">
+                    Started {formatDate(set.startedAt)}
+                    {set.completedAt ? ` • Completed ${formatDate(set.completedAt)}` : ""}
+                  </p>
+                  <p className="mt-2 text-sm text-neutral-300">
+                    {set.photoCount} photo{set.photoCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <EmptyPanel text="No inspection sets created yet." />
             )}
           </div>
         </section>

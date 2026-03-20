@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import HeroScene from "@/components/home/HeroScene";
 
 type Feature = {
   title: string;
@@ -28,254 +26,109 @@ const FEATURES: Feature[] = [
   },
 ];
 
-export default function LandingHero() {
-  const [scrollK, setScrollK] = useState(0);
-  const ticking = useRef(false);
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (ticking.current) return;
-      ticking.current = true;
-
-      requestAnimationFrame(() => {
-        const y = window.scrollY || 0;
-        setScrollK(Math.max(0, Math.min(1, y / 900)));
-        ticking.current = false;
-      });
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const ink = "#cfe0ff";
-  const inkSoft = "rgba(207, 224, 255, 0.72)";
-  const accent = "rgba(80, 160, 255, 0.95)";
-  const border = "rgba(120, 180, 255, 0.16)";
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        color: "white",
-        background:
-          "radial-gradient(circle at top, rgba(60,90,160,0.18), transparent 28%), #030303",
-      }}
-    >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          backdropFilter: "blur(12px)",
-          background: "rgba(3,3,3,0.55)",
-          borderBottom: `1px solid ${border}`,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1400,
-            margin: "0 auto",
-            padding: "16px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
-          <div
-            style={{
-              fontWeight: 900,
-              fontSize: 20,
-              letterSpacing: 0.3,
-              color: ink,
-            }}
-          >
-            ML Hub
-          </div>
-
-          <nav
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              flexWrap: "wrap",
-            }}
-          >
-            <Link href="/" style={navLinkStyle}>
-              Home
-            </Link>
-            <Link href="/client" style={navLinkStyle}>
-              Client
-            </Link>
-            <Link href="/workbench" style={navLinkStyle}>
-              Workbench
-            </Link>
-            <Link href="/owner" style={navLinkStyle}>
-              ML Center
-            </Link>
-            <Link href="/api/auth/signin" style={buttonStyle(accent)}>
-              Sign In
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main
-        style={{
-          maxWidth: 1400,
-          margin: "0 auto",
-          padding: "40px 24px 80px",
-          display: "grid",
-          gridTemplateColumns: "1.15fr 1fr",
-          gap: 32,
-          alignItems: "center",
-        }}
-      >
-        <section style={{ display: "grid", gap: 22 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              width: "fit-content",
-              gap: 10,
-              padding: "10px 14px",
-              borderRadius: 999,
-              border: `1px solid ${border}`,
-              background: "rgba(255,255,255,0.03)",
-              color: inkSoft,
-              fontWeight: 700,
-              fontSize: 13,
-              letterSpacing: 0.3,
-            }}
-          >
-            Admin command centers + client systems + ML tooling
-          </div>
-
-          <div
-            style={{
-              fontSize: "clamp(40px, 7vw, 76px)",
-              lineHeight: 0.95,
-              fontWeight: 950,
-              letterSpacing: -1.8,
-              color: "white",
-              maxWidth: 820,
-            }}
-          >
-            Build a stronger business operating system.
-          </div>
-
-          <div
-            style={{
-              fontSize: 18,
-              lineHeight: 1.7,
-              color: "rgba(255,255,255,0.74)",
-              maxWidth: 760,
-            }}
-          >
-            A polished foundation for client operations, admin workbench control,
-            and ML-centered owner tooling — all inside one system.
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 14,
-              paddingTop: 6,
-            }}
-          >
-            <Link href="/client" style={buttonStyle(accent)}>
-              Open Client
-            </Link>
-            <Link href="/workbench" style={buttonStyle("rgba(255,255,255,0.08)")}>
-              Open Workbench
-            </Link>
-            <Link href="/owner" style={buttonStyle("rgba(255,255,255,0.08)")}>
-              Open ML Center
-            </Link>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 14,
-              paddingTop: 10,
-            }}
-          >
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                style={{
-                  padding: 18,
-                  borderRadius: 20,
-                  border: `1px solid ${border}`,
-                  background: "rgba(255,255,255,0.03)",
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 16,
-                    color: "white",
-                    marginBottom: 6,
-                  }}
-                >
-                  {f.title}
-                </div>
-                <div
-                  style={{
-                    color: "rgba(255,255,255,0.68)",
-                    lineHeight: 1.6,
-                    fontSize: 14,
-                  }}
-                >
-                  {f.subtitle}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section
-          style={{
-            minHeight: 580,
-            borderRadius: 28,
-            overflow: "hidden",
-            border: `1px solid ${border}`,
-            background: "rgba(255,255,255,0.02)",
-            boxShadow: `0 30px 100px rgba(0,0,0,${0.25 + scrollK * 0.15})`,
-          }}
-        >
-          <HeroScene scrollK={scrollK} />
-        </section>
-      </main>
-    </div>
-  );
+function navLinkClasses() {
+  return "rounded-xl px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white";
 }
 
-const navLinkStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.82)",
-  textDecoration: "none",
-  fontWeight: 700,
-  padding: "10px 12px",
-  borderRadius: 12,
-};
+function ctaClasses(kind: "primary" | "secondary" | "silver") {
+  if (kind === "primary") {
+    return "inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/12 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/18";
+  }
 
-function buttonStyle(background: string): CSSProperties {
-  return {
-    color: "white",
-    textDecoration: "none",
-    fontWeight: 800,
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
+  if (kind === "silver") {
+    return "inline-flex items-center justify-center rounded-2xl border border-sky-300/20 bg-sky-400/15 px-5 py-3 text-sm font-extrabold text-sky-100 transition hover:bg-sky-400/20";
+  }
+
+  return "inline-flex items-center justify-center rounded-2xl border border-white/10 bg-black/25 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-black/40";
+}
+
+export default function LandingHero() {
+  return (
+    <section className="mx-auto w-full max-w-7xl px-6 pb-16 pt-8 lg:px-8 lg:pb-24">
+      <div className="rounded-[2rem] border border-white/10 bg-black/20 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+        <div className="flex flex-col gap-8 p-6 lg:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/45">
+                ML Hub
+              </p>
+            </div>
+
+            <nav className="flex flex-wrap items-center gap-2">
+              <Link href="/" className={navLinkClasses()}>
+                Home
+              </Link>
+              <Link href="/client" className={navLinkClasses()}>
+                Client
+              </Link>
+              <Link href="/workbench" className={navLinkClasses()}>
+                Workbench
+              </Link>
+              <Link href="/owner" className={navLinkClasses()}>
+                ML Center
+              </Link>
+              <Link href="/silverpines" className={navLinkClasses()}>
+                SilverPines
+              </Link>
+              <Link href="/api/auth/signin" className={navLinkClasses()}>
+                Sign In
+              </Link>
+            </nav>
+          </div>
+
+          <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.28em] text-sky-200/70">
+                Admin command centers + client systems + ML tooling
+              </p>
+
+              <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl xl:text-6xl">
+                Build a stronger business operating system.
+              </h1>
+
+              <p className="mt-6 max-w-3xl text-base leading-7 text-white/70 md:text-lg">
+                A polished foundation for client operations, admin workbench control,
+                ML-centered owner tooling, and now dedicated property operations
+                through SilverPines — all inside one system.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/client" className={ctaClasses("primary")}>
+                  Open Client
+                </Link>
+                <Link href="/workbench" className={ctaClasses("secondary")}>
+                  Open Workbench
+                </Link>
+                <Link href="/owner" className={ctaClasses("secondary")}>
+                  Open ML Center
+                </Link>
+                <Link href="/silverpines" className={ctaClasses("silver")}>
+                  SilverPines
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              {FEATURES.map((feature) => (
+                <div
+                  key={feature.title}
+                  className="rounded-3xl border border-white/10 bg-white/[0.05] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
+                >
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/45">
+                    Capability
+                  </p>
+                  <h2 className="mt-3 text-lg font-semibold text-white">
+                    {feature.title}
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-white/65">
+                    {feature.subtitle}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
