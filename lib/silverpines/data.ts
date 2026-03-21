@@ -1,3 +1,4 @@
+import type { ManagedUnitRecord } from "@/components/silverpines/types";
 import { prisma } from "@/lib/db/prisma";
 
 type ListFilters = {
@@ -33,7 +34,9 @@ function isActiveMaintenanceStatus(status: string) {
   return ["Upcoming", "DueSoon", "Overdue"].includes(status);
 }
 
-function earliestDueDate(items: Array<{ dueAt: Date | null; status: string }>): string | undefined {
+function earliestDueDate(
+  items: Array<{ dueAt: Date | null; status: string }>
+): string | undefined {
   const candidate = items
     .filter((item) => item.dueAt && isActiveMaintenanceStatus(item.status))
     .sort((a, b) => a.dueAt!.getTime() - b.dueAt!.getTime())[0];
@@ -48,7 +51,11 @@ function latestDate(items: Array<Date | null | undefined>): string | undefined {
 }
 
 function currentYearRepairCost(
-  repairs: Array<{ actualCost: unknown; completedAt: Date | null; openedAt: Date }>
+  repairs: Array<{
+    actualCost: unknown;
+    completedAt: Date | null;
+    openedAt: Date;
+  }>
 ) {
   const year = new Date().getFullYear();
 
@@ -63,7 +70,9 @@ function matchesQuery(value: string | undefined, query: string) {
   return (value ?? "").toLowerCase().includes(query);
 }
 
-export async function listManagedAssets(filters: ListFilters = {}) {
+export async function listManagedAssets(
+  filters: ListFilters = {}
+): Promise<ManagedUnitRecord[]> {
   const propertyCode = filters.propertyCode?.trim() || undefined;
   const includeUnits = filters.unitKind !== "GARAGE";
   const includeGarages = filters.unitKind !== "APARTMENT";
@@ -96,6 +105,7 @@ export async function listManagedAssets(filters: ListFilters = {}) {
           orderBy: [{ buildingLabel: "asc" }, { unitNumber: "asc" }],
         })
       : Promise.resolve([]),
+
     includeGarages
       ? prisma.managedGarage.findMany({
           where: {
@@ -129,7 +139,7 @@ export async function listManagedAssets(filters: ListFilters = {}) {
       : Promise.resolve([]),
   ]);
 
-  let items = [
+  let items: ManagedUnitRecord[] = [
     ...units.map((unit) => ({
       unitCode: unit.unitCode,
       propertyCode: unit.property.code,
@@ -142,12 +152,26 @@ export async function listManagedAssets(filters: ListFilters = {}) {
       hasGarage: unit.hasGarage,
       garageIndicator: unit.garageIndicator,
       linkedGarageCode: unit.linkedGarage?.garageCode ?? undefined,
-      openIssuesCount: unit.repairs.filter((repair) => isOpenRepairStatus(repair.status)).length,
+      openIssuesCount: unit.repairs.filter((repair) =>
+        isOpenRepairStatus(repair.status)
+      ).length,
       nextScheduledMaintenance: earliestDueDate(unit.maintenanceRuns),
-      lastRepairAt: latestDate(unit.repairs.map((repair) => repair.completedAt ?? repair.openedAt)),
-      lastMaintenanceAt: latestDate(unit.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)),
+      lastRepairAt: latestDate(
+        unit.repairs.map((repair) => repair.completedAt ?? repair.openedAt)
+      ),
+      lastMaintenanceAt: latestDate(
+        unit.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)
+      ),
       ytdRepairCost: currentYearRepairCost(unit.repairs),
       notesSummary: unit.notesSummary ?? undefined,
+      repairs: [],
+      maintenance: [],
+      accessCodes: [],
+      keys: [],
+      documents: [],
+      photos: [],
+      inspectionSets: [],
+      notes: [],
     })),
     ...garages.map((garage) => ({
       unitCode: garage.garageCode,
@@ -161,14 +185,30 @@ export async function listManagedAssets(filters: ListFilters = {}) {
       hasGarage: false,
       garageIndicator: "N" as const,
       linkedGarageCode: undefined,
-      openIssuesCount: garage.repairs.filter((repair) => isOpenRepairStatus(repair.status)).length,
+      openIssuesCount: garage.repairs.filter((repair) =>
+        isOpenRepairStatus(repair.status)
+      ).length,
       nextScheduledMaintenance: earliestDueDate(garage.maintenanceRuns),
-      lastRepairAt: latestDate(garage.repairs.map((repair) => repair.completedAt ?? repair.openedAt)),
-      lastMaintenanceAt: latestDate(garage.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)),
+      lastRepairAt: latestDate(
+        garage.repairs.map((repair) => repair.completedAt ?? repair.openedAt)
+      ),
+      lastMaintenanceAt: latestDate(
+        garage.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)
+      ),
       ytdRepairCost: currentYearRepairCost(garage.repairs),
       notesSummary:
         garage.notesSummary ??
-        (garage.linkedUnits[0] ? `Linked to ${garage.linkedUnits[0].unitCode}.` : undefined),
+        (garage.linkedUnits[0]
+          ? `Linked to ${garage.linkedUnits[0].unitCode}.`
+          : undefined),
+      repairs: [],
+      maintenance: [],
+      accessCodes: [],
+      keys: [],
+      documents: [],
+      photos: [],
+      inspectionSets: [],
+      notes: [],
     })),
   ];
 
@@ -200,7 +240,6 @@ export async function listManagedAssets(filters: ListFilters = {}) {
   }
 
   items.sort((a, b) => a.unitCode.localeCompare(b.unitCode));
-
   return items;
 }
 
@@ -276,10 +315,16 @@ export async function getManagedAssetByCode(assetCode: string) {
       hasGarage: unit.hasGarage,
       garageIndicator: unit.garageIndicator,
       linkedGarageCode: unit.linkedGarage?.garageCode ?? undefined,
-      openIssuesCount: unit.repairs.filter((repair) => isOpenRepairStatus(repair.status)).length,
+      openIssuesCount: unit.repairs.filter((repair) =>
+        isOpenRepairStatus(repair.status)
+      ).length,
       nextScheduledMaintenance: earliestDueDate(unit.maintenanceRuns),
-      lastRepairAt: latestDate(unit.repairs.map((repair) => repair.completedAt ?? repair.openedAt)),
-      lastMaintenanceAt: latestDate(unit.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)),
+      lastRepairAt: latestDate(
+        unit.repairs.map((repair) => repair.completedAt ?? repair.openedAt)
+      ),
+      lastMaintenanceAt: latestDate(
+        unit.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)
+      ),
       ytdRepairCost: currentYearRepairCost(unit.repairs),
       notesSummary: unit.notesSummary ?? undefined,
       repairs: unit.repairs.map((repair) => ({
@@ -351,7 +396,8 @@ export async function getManagedAssetByCode(assetCode: string) {
         fileSizeBytes: photo.fileSizeBytes ?? undefined,
         takenAt: toIso(photo.takenAt),
         uploadedAt: photo.uploadedAt.toISOString(),
-        uploadedByName: photo.uploadedByUser?.name ?? photo.uploadedByUser?.email ?? undefined,
+        uploadedByName:
+          photo.uploadedByUser?.name ?? photo.uploadedByUser?.email ?? undefined,
         inspectionSetCode: photo.inspectionSet?.code ?? undefined,
       })),
       inspectionSets: unit.inspectionSets.map((set) => ({
@@ -445,13 +491,20 @@ export async function getManagedAssetByCode(assetCode: string) {
     hasGarage: false,
     garageIndicator: "N" as const,
     linkedGarageCode: undefined,
-    openIssuesCount: garage.repairs.filter((repair) => isOpenRepairStatus(repair.status)).length,
+    openIssuesCount: garage.repairs.filter((repair) =>
+      isOpenRepairStatus(repair.status)
+    ).length,
     nextScheduledMaintenance: earliestDueDate(garage.maintenanceRuns),
-    lastRepairAt: latestDate(garage.repairs.map((repair) => repair.completedAt ?? repair.openedAt)),
-    lastMaintenanceAt: latestDate(garage.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)),
+    lastRepairAt: latestDate(
+      garage.repairs.map((repair) => repair.completedAt ?? repair.openedAt)
+    ),
+    lastMaintenanceAt: latestDate(
+      garage.maintenanceRuns.map((run) => run.completedAt ?? run.dueAt)
+    ),
     ytdRepairCost: currentYearRepairCost(garage.repairs),
     notesSummary:
-      garage.notesSummary ?? (linkedUnitCode ? `Linked to ${linkedUnitCode}.` : undefined),
+      garage.notesSummary ??
+      (linkedUnitCode ? `Linked to ${linkedUnitCode}.` : undefined),
     repairs: garage.repairs.map((repair) => ({
       id: repair.id,
       title: repair.title,
@@ -521,7 +574,8 @@ export async function getManagedAssetByCode(assetCode: string) {
       fileSizeBytes: photo.fileSizeBytes ?? undefined,
       takenAt: toIso(photo.takenAt),
       uploadedAt: photo.uploadedAt.toISOString(),
-      uploadedByName: photo.uploadedByUser?.name ?? photo.uploadedByUser?.email ?? undefined,
+      uploadedByName:
+        photo.uploadedByUser?.name ?? photo.uploadedByUser?.email ?? undefined,
       inspectionSetCode: photo.inspectionSet?.code ?? undefined,
     })),
     inspectionSets: garage.inspectionSets.map((set) => ({
@@ -534,9 +588,8 @@ export async function getManagedAssetByCode(assetCode: string) {
       completedAt: toIso(set.completedAt),
       photoCount: set.photos.length,
     })),
-    notes: [garage.notes, linkedUnitCode ? `Linked to ${linkedUnitCode}.` : undefined].filter(
-      Boolean
-    ) as string[],
+    notes: [garage.notes, linkedUnitCode ? `Linked to ${linkedUnitCode}.` : undefined]
+      .filter(Boolean) as string[],
   };
 }
 
