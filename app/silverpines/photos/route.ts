@@ -1,6 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import {
+  ManagedPhotoCategory,
+  ManagedPhotoRoomTag,
+  ManagedPhotoSubjectType,
+} from "@prisma/client";
+
 import { requireAdmin } from "@/lib/auth/require";
 import { jsonCreated, jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db/prisma";
@@ -15,39 +21,39 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 
-const PHOTO_CATEGORIES = new Set([
-  "General",
-  "Inspection",
-  "Before",
-  "After",
-  "Damage",
-  "Turnover",
-  "Appliance",
-  "Exterior",
-  "Safety",
-  "Receipt",
-  "Other",
-] as const);
+const PHOTO_CATEGORIES = new Set<ManagedPhotoCategory>([
+  ManagedPhotoCategory.General,
+  ManagedPhotoCategory.Inspection,
+  ManagedPhotoCategory.Before,
+  ManagedPhotoCategory.After,
+  ManagedPhotoCategory.Damage,
+  ManagedPhotoCategory.Turnover,
+  ManagedPhotoCategory.Appliance,
+  ManagedPhotoCategory.Exterior,
+  ManagedPhotoCategory.Safety,
+  ManagedPhotoCategory.Receipt,
+  ManagedPhotoCategory.Other,
+]);
 
-const ROOM_TAGS = new Set([
-  "Unknown",
-  "Exterior",
-  "Entry",
-  "LivingRoom",
-  "Kitchen",
-  "DiningRoom",
-  "Hallway",
-  "Bathroom",
-  "Bedroom",
-  "Laundry",
-  "Utility",
-  "Garage",
-  "Balcony",
-  "Patio",
-  "Closet",
-  "Mechanical",
-  "Other",
-] as const);
+const ROOM_TAGS = new Set<ManagedPhotoRoomTag>([
+  ManagedPhotoRoomTag.Unknown,
+  ManagedPhotoRoomTag.Exterior,
+  ManagedPhotoRoomTag.Entry,
+  ManagedPhotoRoomTag.LivingRoom,
+  ManagedPhotoRoomTag.Kitchen,
+  ManagedPhotoRoomTag.DiningRoom,
+  ManagedPhotoRoomTag.Hallway,
+  ManagedPhotoRoomTag.Bathroom,
+  ManagedPhotoRoomTag.Bedroom,
+  ManagedPhotoRoomTag.Laundry,
+  ManagedPhotoRoomTag.Utility,
+  ManagedPhotoRoomTag.Garage,
+  ManagedPhotoRoomTag.Balcony,
+  ManagedPhotoRoomTag.Patio,
+  ManagedPhotoRoomTag.Closet,
+  ManagedPhotoRoomTag.Mechanical,
+  ManagedPhotoRoomTag.Other,
+]);
 
 function safeSegment(value: string) {
   return value.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -77,6 +83,22 @@ function todayParts(date = new Date()) {
   return { year, month, day };
 }
 
+function parsePhotoCategory(value: FormDataEntryValue | null): ManagedPhotoCategory {
+  if (typeof value === "string" && PHOTO_CATEGORIES.has(value as ManagedPhotoCategory)) {
+    return value as ManagedPhotoCategory;
+  }
+
+  return ManagedPhotoCategory.General;
+}
+
+function parseRoomTag(value: FormDataEntryValue | null): ManagedPhotoRoomTag {
+  if (typeof value === "string" && ROOM_TAGS.has(value as ManagedPhotoRoomTag)) {
+    return value as ManagedPhotoRoomTag;
+  }
+
+  return ManagedPhotoRoomTag.Unknown;
+}
+
 export async function POST(req: Request) {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
@@ -93,18 +115,15 @@ export async function POST(req: Request) {
 
     const assetCode =
       typeof assetCodeRaw === "string" ? assetCodeRaw.trim().toUpperCase() : "";
+
     const caption =
       typeof captionRaw === "string" && captionRaw.trim().length > 0
         ? captionRaw.trim()
         : undefined;
-    const category =
-      typeof categoryRaw === "string" && PHOTO_CATEGORIES.has(categoryRaw as never)
-        ? categoryRaw
-        : "General";
-    const roomTag =
-      typeof roomTagRaw === "string" && ROOM_TAGS.has(roomTagRaw as never)
-        ? roomTagRaw
-        : "Unknown";
+
+    const category = parsePhotoCategory(categoryRaw);
+    const roomTag = parseRoomTag(roomTagRaw);
+
     const inspectionSetId =
       typeof inspectionSetIdRaw === "string" && inspectionSetIdRaw.trim().length > 0
         ? inspectionSetIdRaw.trim()
@@ -183,6 +202,7 @@ export async function POST(req: Request) {
     const { year, month, day } = todayParts();
     const ext = extensionFromMime(fileValue.type);
     const fileName = `${crypto.randomUUID()}.${ext}`;
+
     const relativeDir = path.posix.join(
       "uploads",
       "silverpines",
@@ -191,6 +211,7 @@ export async function POST(req: Request) {
       month,
       day
     );
+
     const absoluteDir = path.join(process.cwd(), "public", relativeDir);
     const absoluteFilePath = path.join(absoluteDir, fileName);
     const browserPath = `/${relativeDir}/${fileName}`;
@@ -200,6 +221,10 @@ export async function POST(req: Request) {
     const arrayBuffer = await fileValue.arrayBuffer();
     await writeFile(absoluteFilePath, Buffer.from(arrayBuffer));
 
+    const subjectType: ManagedPhotoSubjectType = unit
+      ? ManagedPhotoSubjectType.Unit
+      : ManagedPhotoSubjectType.Garage;
+
     const photo = await prisma.managedPhoto.create({
       data: {
         propertyId: unit?.propertyId ?? garage!.propertyId,
@@ -208,7 +233,7 @@ export async function POST(req: Request) {
         inspectionSetId,
         uploadedByUserId: auth.userId,
         category,
-        subjectType: unit ? "Unit" : "Garage",
+        subjectType,
         roomTag,
         caption,
         originalFileName: fileValue.name || undefined,
