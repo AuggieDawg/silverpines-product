@@ -19,6 +19,8 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/heif",
 ]);
 
+const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+
 const PHOTO_CATEGORIES = new Set<ManagedPhotoCategory>([
   ManagedPhotoCategory.General,
   ManagedPhotoCategory.Inspection,
@@ -81,6 +83,22 @@ function todayParts(date = new Date()) {
   return { year, month, day };
 }
 
+function parsePhotoCategory(value: FormDataEntryValue | null): ManagedPhotoCategory {
+  if (typeof value === "string" && PHOTO_CATEGORIES.has(value as ManagedPhotoCategory)) {
+    return value as ManagedPhotoCategory;
+  }
+
+  return ManagedPhotoCategory.General;
+}
+
+function parseRoomTag(value: FormDataEntryValue | null): ManagedPhotoRoomTag {
+  if (typeof value === "string" && ROOM_TAGS.has(value as ManagedPhotoRoomTag)) {
+    return value as ManagedPhotoRoomTag;
+  }
+
+  return ManagedPhotoRoomTag.Unknown;
+}
+
 export async function POST(req: Request) {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
@@ -103,17 +121,8 @@ export async function POST(req: Request) {
         ? captionRaw.trim()
         : undefined;
 
-    const category: ManagedPhotoCategory =
-      typeof categoryRaw === "string" &&
-      PHOTO_CATEGORIES.has(categoryRaw as ManagedPhotoCategory)
-        ? (categoryRaw as ManagedPhotoCategory)
-        : ManagedPhotoCategory.General;
-
-    const roomTag: ManagedPhotoRoomTag =
-      typeof roomTagRaw === "string" &&
-      ROOM_TAGS.has(roomTagRaw as ManagedPhotoRoomTag)
-        ? (roomTagRaw as ManagedPhotoRoomTag)
-        : ManagedPhotoRoomTag.Unknown;
+    const category = parsePhotoCategory(categoryRaw);
+    const roomTag = parseRoomTag(roomTagRaw);
 
     const inspectionSetId =
       typeof inspectionSetIdRaw === "string" && inspectionSetIdRaw.trim().length > 0
@@ -132,7 +141,7 @@ export async function POST(req: Request) {
       return jsonError(400, "file is empty");
     }
 
-    if (fileValue.size > 12 * 1024 * 1024) {
+    if (fileValue.size > MAX_FILE_SIZE_BYTES) {
       return jsonError(400, "file exceeds the 12 MB upload limit");
     }
 
@@ -142,13 +151,19 @@ export async function POST(req: Request) {
 
     const unit = await prisma.managedUnit.findUnique({
       where: { unitCode: assetCode },
-      select: { id: true, propertyId: true },
+      select: {
+        id: true,
+        propertyId: true,
+      },
     });
 
     const garage = !unit
       ? await prisma.managedGarage.findUnique({
           where: { garageCode: assetCode },
-          select: { id: true, propertyId: true },
+          select: {
+            id: true,
+            propertyId: true,
+          },
         })
       : null;
 

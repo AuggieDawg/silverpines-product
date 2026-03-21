@@ -1,6 +1,11 @@
 import type { ManagedUnitRecord } from "@/components/silverpines/types";
 
-export const silverPinesUnits: ManagedUnitRecord[] = [
+type MockManagedUnitRecord = Omit<
+  ManagedUnitRecord,
+  "photos" | "inspectionSets"
+>;
+
+const baseSilverPinesUnits: MockManagedUnitRecord[] = [
   {
     unitCode: "SILVER-A-101",
     propertyCode: "SILVER",
@@ -527,3 +532,11 @@ export const silverPinesUnits: ManagedUnitRecord[] = [
     notes: [],
   },
 ];
+
+export const silverPinesUnits: ManagedUnitRecord[] = baseSilverPinesUnits.map(
+  (unit) => ({
+    ...unit,
+    photos: [],
+    inspectionSets: [],
+  })
+);
