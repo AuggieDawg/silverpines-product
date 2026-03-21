@@ -50,7 +50,7 @@ export default function LandingHero() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/45">
-                ML Hub
+                Syndicate Labs
               </p>
             </div>
 
@@ -83,13 +83,13 @@ export default function LandingHero() {
               </p>
 
               <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl xl:text-6xl">
-                Build a stronger business operating system.
+                Build a Stronger Business.
               </h1>
 
               <p className="mt-6 max-w-3xl text-base leading-7 text-white/70 md:text-lg">
-                A polished foundation for client operations, admin workbench control,
+                Customizing polished foundations for client operations, administrative business control,
                 ML-centered owner tooling, and now dedicated property operations
-                through SilverPines — all inside one system.
+                <b> - all inside one system.</b>
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
