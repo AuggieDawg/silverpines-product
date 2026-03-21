@@ -20,6 +20,6 @@ export default defineConfig({
 
   // Defines the database connection URL for CLI operations (migrate, generate, etc.)
   datasource: {
-    url: env("DATABASE_URL"),
+    url: env("DIRECT_URL"),
   },
 });
