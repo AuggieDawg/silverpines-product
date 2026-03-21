@@ -1,4 +1,7 @@
-import type { ManagedUnitRecord } from "@/components/silverpines/types";
+import type {
+  ManagedUnitRecord,
+  UnitRepairEvent as UnitRepairEventRecord,
+} from "@/components/silverpines/types";
 import { prisma } from "@/lib/db/prisma";
 
 type ListFilters = {
@@ -68,6 +71,23 @@ function currentYearRepairCost(
 
 function matchesQuery(value: string | undefined, query: string) {
   return (value ?? "").toLowerCase().includes(query);
+}
+
+const REPAIR_PRIORITIES = new Set<UnitRepairEventRecord["priority"]>([
+  "Low",
+  "Medium",
+  "High",
+  "Urgent",
+]);
+
+function normalizeRepairPriority(
+  value: string | null | undefined
+): UnitRepairEventRecord["priority"] {
+  if (value && REPAIR_PRIORITIES.has(value as UnitRepairEventRecord["priority"])) {
+    return value as UnitRepairEventRecord["priority"];
+  }
+
+  return "Medium";
 }
 
 export async function listManagedAssets(
@@ -331,7 +351,7 @@ export async function getManagedAssetByCode(assetCode: string) {
         id: repair.id,
         title: repair.title,
         category: repair.category,
-        priority: repair.priority,
+        priority: normalizeRepairPriority(repair.priority),
         status: repair.status,
         description: repair.description ?? undefined,
         vendorName: repair.vendor?.name ?? undefined,
@@ -509,7 +529,7 @@ export async function getManagedAssetByCode(assetCode: string) {
       id: repair.id,
       title: repair.title,
       category: repair.category,
-      priority: repair.priority,
+      priority: normalizeRepairPriority(repair.priority),
       status: repair.status,
       description: repair.description ?? undefined,
       vendorName: repair.vendor?.name ?? undefined,
