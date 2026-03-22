@@ -14,3 +14,10 @@ export default function HomePage() {
     </main>
   );
 }
+
+
+
+<footer className="text-xs opacity-70">
+  {process.env.VERCEL_TARGET_ENV} · {process.env.VERCEL_GIT_COMMIT_REF} ·{" "}
+  {process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7)}
+</footer>
