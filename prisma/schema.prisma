@@ -32,97 +32,66 @@ enum WorkbenchTaskPriority {
   High
 }
 
-enum SecurityPropertyAccessRole {
-  Viewer
-  Operator
-  Billing
-  Admin
+
+enum RepairDeviceType {
+  Phone
+  Tablet
+  Laptop
+  Desktop
+  AllInOne
+  CustomBuild
+  Monitor
+  GameConsole
+  Smartwatch
+  Printer
+  Other
 }
 
-enum SecurityDeviceType {
-  CAMERA
-  DOOR_SENSOR
-  WINDOW_SENSOR
-  MOTION_SENSOR
-  SMOKE_DETECTOR
-  CO_DETECTOR
-  LOCK
-  PANEL
-  SIREN
-  FLOOD_SENSOR
-  OTHER
-}
-
-enum SecurityDeviceStatus {
-  UNCONFIGURED
-  ONLINE
-  WARNING
-  OFFLINE
-  MAINTENANCE
-}
-
-enum CameraTransport {
-  RTSP
-  HLS
-  WEBRTC
-  ONVIF
-  OTHER
-}
-
-enum CameraStreamKind {
-  LIVE
-  SUBSTREAM
-  RECORDING
-  SNAPSHOT
-}
-
-enum CameraStreamStatus {
-  UNCONFIGURED
-  CONNECTING
-  LIVE
-  DEGRADED
-  OFFLINE
-}
-
-enum SecurityAlertSeverity {
-  INFO
-  WARNING
-  CRITICAL
-}
-
-enum SecurityAlertStatus {
-  Open
-  Acknowledged
-  Resolved
-}
-
-enum SecurityEventType {
-  MANUAL
-  DEVICE_HEARTBEAT
-  MOTION_DETECTED
-  DOOR_OPENED
-  DOOR_CLOSED
-  CAMERA_OFFLINE
-  CAMERA_RESTORED
-  SYSTEM_ARMED
-  SYSTEM_DISARMED
-  RECORDING_STARTED
-  RECORDING_STOPPED
-}
-
-enum ServiceTicketPriority {
+enum RepairTicketPriority {
   Low
   Medium
   High
   Urgent
 }
 
-enum ServiceTicketStatus {
-  Open
-  Scheduled
-  InProgress
-  Resolved
-  Closed
+enum RepairIntakeChannel {
+  WalkIn
+  Phone
+  Text
+  WhatsApp
+  Facebook
+  Website
+  Referral
+  Other
+}
+
+enum RepairQuoteStatus {
+  Draft
+  Sent
+  Approved
+  Rejected
+  Expired
+}
+
+enum RepairPhotoCategory {
+  Intake
+  Before
+  Damage
+  Diagnostic
+  Progress
+  After
+  Receipt
+  Pickup
+  Other
+}
+
+enum RepairPaymentMethod {
+  Cash
+  Card
+  Transfer
+  Zelle
+  CashApp
+  Other
 }
 
 enum InvoiceStatus {
@@ -258,30 +227,38 @@ enum InspectionSetStatus {
 }
 
 model User {
-  id                          String                   @id @default(cuid())
-  email                       String                   @unique
-  emailVerified               DateTime?
-  name                        String?
-  image                       String?
-  role                        Role                     @default(USER)
-  profile                     Profile?
-  tasks                       Task[]
-  accounts                    Account[]
-  sessions                    Session[]
-  createdAt                   DateTime                 @default(now())
-  updatedAt                   DateTime                 @updatedAt
-  workbenchTasks              WorkbenchTask[]          @relation("WorkbenchTaskOwner")
-  workbenchTaskComments       WorkbenchTaskComment[]   @relation("WorkbenchTaskCommentAuthor")
-  workbenchTaskLinks          WorkbenchTaskLink[]      @relation("WorkbenchTaskLinkOwner")
-  mapBoxes                    MapBox[]                 @relation("UserMapBoxes")
-  securityPropertiesOwned     SecurityProperty[]       @relation("SecurityPropertyOwner")
-  securityPropertyMemberships SecurityPropertyMember[]
-  securityAuditLogsAsActor    SecurityAuditLog[]       @relation("SecurityAuditLogActor")
-  managedPropertiesOwned      ManagedProperty[]        @relation("ManagedPropertyOwner")
-  managedPropertyMemberships  ManagedPropertyMember[]
-  managedAuditLogsAsActor     ManagedAuditLog[]        @relation("ManagedAuditLogActor")
-  managedPhotosUploaded       ManagedPhoto[]           @relation("ManagedPhotoUploadedBy")
-  inspectionSetsCreated       InspectionSet[]          @relation("InspectionSetCreatedBy")
+  id                         String                 @id @default(cuid())
+  email                      String                 @unique
+  emailVerified              DateTime?
+  name                       String?
+  image                      String?
+  role                       Role                   @default(USER)
+  profile                    Profile?
+  tasks                      Task[]
+  accounts                   Account[]
+  sessions                   Session[]
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  workbenchTasks             WorkbenchTask[]        @relation("WorkbenchTaskOwner")
+  workbenchTaskComments      WorkbenchTaskComment[] @relation("WorkbenchTaskCommentAuthor")
+  workbenchTaskLinks         WorkbenchTaskLink[]    @relation("WorkbenchTaskLinkOwner")
+  mapBoxes                   MapBox[]               @relation("UserMapBoxes")
+
+  repairCustomersOwned       RepairCustomer[]       @relation("RepairCustomerOwner")
+  repairDevicesOwned         RepairDevice[]         @relation("RepairDeviceOwner")
+  repairTicketsOwned         RepairTicket[]         @relation("RepairTicketOwner")
+  repairInventoryPartsOwned  InventoryPart[]        @relation("InventoryPartOwner")
+  repairInvoicesOwned        RepairInvoice[]        @relation("RepairInvoiceOwner")
+  repairDocumentsOwned       RepairDocument[]       @relation("RepairDocumentOwner")
+  repairPhotosUploaded       RepairPhoto[]          @relation("RepairPhotoUploadedBy")
+  repairNotesAuthored        RepairNote[]           @relation("RepairNoteAuthor")
+  repairAuditLogsAsActor     RepairAuditLog[]       @relation("RepairAuditLogActor")
+
+  managedPropertiesOwned     ManagedProperty[]      @relation("ManagedPropertyOwner")
+  managedPropertyMemberships ManagedPropertyMember[]
+  managedAuditLogsAsActor    ManagedAuditLog[]      @relation("ManagedAuditLogActor")
+  managedPhotosUploaded      ManagedPhoto[]         @relation("ManagedPhotoUploadedBy")
+  inspectionSetsCreated      InspectionSet[]        @relation("InspectionSetCreatedBy")
 }
 
 model Profile {
@@ -408,283 +385,301 @@ model MapBox {
   @@index([userId, order])
 }
 
-model SecurityProperty {
-  id             String                   @id @default(cuid())
-  ownerId        String
-  name           String
-  nickname       String?
-  description    String?
-  siteLabel      String?
-  siteTimezone   String?
-  isActive       Boolean                  @default(true)
-  owner          User                     @relation("SecurityPropertyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members        SecurityPropertyMember[]
-  zones          SecurityZone[]
-  devices        SecurityDevice[]
-  alerts         SecurityAlert[]
-  events         SecurityEvent[]
-  serviceTickets SecurityServiceTicket[]
-  invoices       SecurityInvoice[]
-  documents      SecurityDocument[]
-  auditLogs      SecurityAuditLog[]
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+
+model RepairCustomer {
+  id           String           @id @default(cuid())
+  ownerId      String
+  displayName  String
+  companyName  String?
+  phone        String?
+  email        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?          @default("US")
+  notes        String?
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  owner        User             @relation("RepairCustomerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  devices      RepairDevice[]
+  tickets      RepairTicket[]
+  invoices     RepairInvoice[]
+  documents    RepairDocument[]
+  auditLogs    RepairAuditLog[]
 
   @@index([ownerId])
-  @@index([ownerId, updatedAt])
+  @@index([ownerId, displayName])
+  @@index([phone])
+  @@index([email])
 }
 
-model SecurityPropertyMember {
-  id         String                     @id @default(cuid())
-  propertyId String
-  userId     String
-  accessRole SecurityPropertyAccessRole @default(Viewer)
-  createdAt  DateTime                   @default(now())
-  updatedAt  DateTime                   @updatedAt
-  property   SecurityProperty           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+model RepairDevice {
+  id                    String           @id @default(cuid())
+  ownerId               String
+  customerId            String
+  label                 String
+  deviceType            RepairDeviceType
+  brand                 String?
+  model                 String?
+  color                 String?
+  serialNumber          String?
+  imei                  String?
+  storageCapacity       String?
+  operatingSystem       String?
+  passcodeHint          String?
+  accessoriesIncluded   String?
+  issueSummary          String?
+  cosmeticCondition     String?
+  powersOn              Boolean?
+  liquidDamageSuspected Boolean          @default(false)
+  dataBackupRequested   Boolean          @default(false)
+  dataPrivacyAccepted   Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
-  @@unique([propertyId, userId])
-  @@index([userId])
-  @@index([propertyId])
+  owner                 User             @relation("RepairDeviceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer              RepairCustomer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tickets               RepairTicket[]
+  photos                RepairPhoto[]
+
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([deviceType])
+  @@index([serialNumber])
+  @@index([imei])
 }
 
-model SecurityZone {
-  id          String           @id @default(cuid())
-  propertyId  String
-  name        String
-  statusLabel String           @default("Not mapped")
-  sortOrder   Int              @default(0)
-  note        String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  property    SecurityProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  devices     SecurityDevice[]
-  alerts      SecurityAlert[]
-  events      SecurityEvent[]
+model RepairTicket {
+  id                 String               @id @default(cuid())
+  ownerId            String
+  customerId         String
+  deviceId           String
+  ticketNumber       String               @unique
+  title              String
+  status             RepairStatus         @default(Reported)
+  priority           RepairTicketPriority @default(Medium)
+  intakeChannel      RepairIntakeChannel  @default(WalkIn)
+  reportedIssue      String?
+  diagnosticSummary  String?
+  internalNotes      String?
+  claimCheckCode     String?
+  quotedAmount       Decimal?             @db.Decimal(10, 2)
+  estimatedPartsCost Decimal?             @db.Decimal(10, 2)
+  estimatedLaborCost Decimal?             @db.Decimal(10, 2)
+  finalAmount        Decimal?             @db.Decimal(10, 2)
+  depositAmount      Decimal?             @db.Decimal(10, 2)
+  receivedAt         DateTime             @default(now())
+  scheduledFor       DateTime?
+  startedAt          DateTime?
+  approvedAt         DateTime?
+  completedAt        DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
-  @@index([propertyId])
-  @@index([propertyId, sortOrder])
+  owner              User                 @relation("RepairTicketOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer           RepairCustomer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  device             RepairDevice         @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  notes              RepairNote[]
+  photos             RepairPhoto[]
+  partUsages         RepairPartUsage[]
+  quotes             RepairQuote[]
+  invoices           RepairInvoice[]
+  documents          RepairDocument[]
+  auditLogs          RepairAuditLog[]
+
+  @@index([ownerId])
+  @@index([customerId, receivedAt])
+  @@index([deviceId, receivedAt])
+  @@index([status, updatedAt])
+  @@index([priority, updatedAt])
 }
 
-model SecurityDevice {
-  id                 String                @id @default(cuid())
-  propertyId         String
-  zoneId             String?
-  name               String
-  deviceType         SecurityDeviceType
-  status             SecurityDeviceStatus  @default(UNCONFIGURED)
-  manufacturer       String?
-  modelName          String?
-  serialNumber       String?
-  firmwareVersion    String?
-  ipAddress          String?
-  resolutionLabel    String?
-  preferredTransport CameraTransport?
-  supportsOnvif      Boolean               @default(false)
-  supportsRtsp       Boolean               @default(false)
-  supportsPtz        Boolean               @default(false)
-  isRecordingEnabled Boolean               @default(false)
-  installedAt        DateTime?
-  lastSeenAt         DateTime?
-  notes              String?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  property           SecurityProperty      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  zone               SecurityZone?         @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  streamProfiles     CameraStreamProfile[]
-  healthSamples      CameraHealthSample[]
-  snapshots          Snapshot[]
-  recordingClips     RecordingClip[]
-  alerts             SecurityAlert[]
-  events             SecurityEvent[]
+model RepairNote {
+  id                String       @id @default(cuid())
+  ticketId          String
+  authorUserId      String?
+  body              String
+  isCustomerVisible Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  @@index([propertyId])
-  @@index([propertyId, deviceType])
-  @@index([propertyId, status])
-  @@index([propertyId, deviceType, updatedAt])
-  @@index([zoneId])
+  ticket            RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorUser        User?        @relation("RepairNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([authorUserId, createdAt])
 }
 
-model CameraStreamProfile {
-  id            String             @id @default(cuid())
-  deviceId      String
-  label         String
-  kind          CameraStreamKind   @default(LIVE)
-  transport     CameraTransport
-  status        CameraStreamStatus @default(UNCONFIGURED)
-  streamPath    String?
-  width         Int?
-  height        Int?
-  fps           Int?
-  bitrateKbps   Int?
-  codec         String?
-  isPrimary     Boolean            @default(false)
-  lastCheckedAt DateTime?
-  lastError     String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  device        SecurityDevice     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+model InventoryPart {
+  id             String          @id @default(cuid())
+  ownerId        String
+  sku            String?
+  name           String
+  brand          String?
+  category       String?
+  compatibleWith String?
+  supplierName   String?
+  supplierUrl    String?
+  quantityOnHand Int             @default(0)
+  reorderPoint   Int?
+  unitCost       Decimal?        @db.Decimal(10, 2)
+  unitPrice      Decimal?        @db.Decimal(10, 2)
+  notes          String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  @@index([deviceId])
-  @@index([deviceId, status])
-  @@index([deviceId, kind])
+  owner          User            @relation("InventoryPartOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usages         RepairPartUsage[]
+
+  @@index([ownerId])
+  @@index([ownerId, name])
+  @@index([sku])
+  @@index([quantityOnHand])
 }
 
-model CameraHealthSample {
-  id            String         @id @default(cuid())
-  deviceId      String
-  isOnline      Boolean
-  latencyMs     Int?
-  bitrateKbps   Int?
-  frameRate     Float?
-  packetLossPct Float?
-  note          String?
-  capturedAt    DateTime       @default(now())
-  device        SecurityDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+model RepairPartUsage {
+  id        String       @id @default(cuid())
+  ticketId  String
+  partId    String
+  quantity  Int          @default(1)
+  unitCost  Decimal?     @db.Decimal(10, 2)
+  unitPrice Decimal?     @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  @@index([deviceId, capturedAt])
+  ticket    RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  part      InventoryPart @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
+  @@index([partId])
 }
 
-model Snapshot {
-  id         String         @id @default(cuid())
-  deviceId   String
-  storageKey String
-  previewUrl String?
-  width      Int?
-  height     Int?
-  bytes      Int?
-  capturedAt DateTime       @default(now())
-  device     SecurityDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  @@index([deviceId, capturedAt])
-}
-
-model RecordingClip {
-  id          String         @id @default(cuid())
-  deviceId    String
-  storageKey  String
-  previewUrl  String?
-  mimeType    String?
-  bytes       Int?
-  startedAt   DateTime
-  endedAt     DateTime
-  durationSec Int?
-  createdAt   DateTime       @default(now())
-  device      SecurityDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  @@index([deviceId, startedAt])
-}
-
-model SecurityAlert {
-  id          String                @id @default(cuid())
-  propertyId  String
-  zoneId      String?
-  deviceId    String?
-  severity    SecurityAlertSeverity @default(INFO)
-  status      SecurityAlertStatus   @default(Open)
-  title       String
-  detail      String?
-  triggeredAt DateTime              @default(now())
-  resolvedAt  DateTime?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-  property    SecurityProperty      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  zone        SecurityZone?         @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  device      SecurityDevice?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-
-  @@index([propertyId, status])
-  @@index([propertyId, triggeredAt])
-  @@index([zoneId])
-  @@index([deviceId])
-}
-
-model SecurityEvent {
-  id         String            @id @default(cuid())
-  propertyId String
-  zoneId     String?
-  deviceId   String?
-  eventType  SecurityEventType @default(MANUAL)
-  title      String
-  detail     String?
-  actorLabel String?
-  occurredAt DateTime          @default(now())
-  createdAt  DateTime          @default(now())
-  property   SecurityProperty  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  zone       SecurityZone?     @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  device     SecurityDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-
-  @@index([propertyId, occurredAt])
-  @@index([zoneId])
-  @@index([deviceId])
-}
-
-model SecurityServiceTicket {
-  id            String                @id @default(cuid())
-  propertyId    String
-  title         String
-  detail        String?
-  priority      ServiceTicketPriority @default(Medium)
-  status        ServiceTicketStatus   @default(Open)
-  openedByLabel String?
-  scheduledFor  DateTime?
-  resolvedAt    DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  property      SecurityProperty      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@index([propertyId, status])
-  @@index([propertyId, priority])
-}
-
-model SecurityInvoice {
-  id            String           @id @default(cuid())
-  propertyId    String
-  invoiceNumber String?          @unique
-  amountCents   Int
-  currency      String           @default("USD")
-  dueDate       DateTime
-  status        InvoiceStatus    @default(Open)
-  issuedAt      DateTime         @default(now())
-  paidAt        DateTime?
-  note          String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  property      SecurityProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@index([propertyId, status])
-  @@index([propertyId, dueDate])
-}
-
-model SecurityDocument {
-  id         String           @id @default(cuid())
-  propertyId String
-  name       String
-  category   DocumentCategory @default(Operations)
-  summary    String?
-  storageKey String?
-  uploadedAt DateTime         @default(now())
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  property   SecurityProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@index([propertyId, category])
-  @@index([propertyId, uploadedAt])
-}
-
-model SecurityAuditLog {
+model RepairQuote {
   id          String            @id @default(cuid())
-  propertyId  String?
+  ticketId    String
+  status      RepairQuoteStatus @default(Draft)
+  laborAmount Decimal?          @db.Decimal(10, 2)
+  partsAmount Decimal?          @db.Decimal(10, 2)
+  taxAmount   Decimal?          @db.Decimal(10, 2)
+  totalAmount Decimal?          @db.Decimal(10, 2)
+  notes       String?
+  sentAt      DateTime?
+  respondedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  ticket      RepairTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([status])
+}
+
+model RepairInvoice {
+  id            String               @id @default(cuid())
+  ownerId       String
+  customerId    String
+  ticketId      String?
+  invoiceNumber String               @unique
+  status        InvoiceStatus        @default(Draft)
+  paymentMethod RepairPaymentMethod?
+  subtotal      Decimal?             @db.Decimal(10, 2)
+  taxAmount     Decimal?             @db.Decimal(10, 2)
+  totalAmount   Decimal?             @db.Decimal(10, 2)
+  amountPaid    Decimal?             @db.Decimal(10, 2)
+  issuedAt      DateTime?
+  dueAt         DateTime?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  owner         User                 @relation("RepairInvoiceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer      RepairCustomer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket        RepairTicket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([customerId, createdAt])
+  @@index([ticketId])
+  @@index([status])
+}
+
+model RepairDocument {
+  id               String           @id @default(cuid())
+  ownerId          String
+  customerId       String?
+  ticketId         String?
+  name             String
+  originalFileName String?
+  mimeType         String
+  category         DocumentCategory @default(Other)
+  summary          String?
+  storageKey       String
+  fileSizeBytes    Int?
+  uploadedAt       DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  owner            User             @relation("RepairDocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer         RepairCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket           RepairTicket?    @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, category])
+  @@index([customerId, uploadedAt])
+  @@index([ticketId, uploadedAt])
+}
+
+model RepairPhoto {
+  id               String              @id @default(cuid())
+  ticketId         String
+  deviceId         String?
+  uploadedByUserId String?
+  category         RepairPhotoCategory @default(Intake)
+  caption          String?
+  originalFileName String?
+  mimeType         String
+  storageKey       String
+  width            Int?
+  height           Int?
+  fileSizeBytes    Int?
+  takenAt          DateTime?
+  uploadedAt       DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  ticket           RepairTicket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  device           RepairDevice?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  uploadedByUser   User?               @relation("RepairPhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, uploadedAt])
+  @@index([deviceId, uploadedAt])
+  @@index([uploadedByUserId, uploadedAt])
+}
+
+model RepairAuditLog {
+  id          String          @id @default(cuid())
+  customerId  String?
+  ticketId    String?
   actorUserId String?
   entityType  String
   entityId    String?
   action      String
   metadata    Json?
-  createdAt   DateTime          @default(now())
-  property    SecurityProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
-  actorUser   User?             @relation("SecurityAuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
 
-  @@index([propertyId, createdAt])
+  customer    RepairCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket      RepairTicket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  actorUser   User?           @relation("RepairAuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([ticketId, createdAt])
   @@index([actorUserId, createdAt])
 }
 
