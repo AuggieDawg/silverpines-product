@@ -5,7 +5,7 @@ import LandingHero from "@/components/home/LandingHero";
 export default function HomePage() {
   return (
     <main className="relative isolate min-h-screen overflow-x-clip text-white">
-      <ParticlesBackground />
+      <ParticlesBackground mode="full" />
 
       <div className="relative z-10">
         <LandingHero />
