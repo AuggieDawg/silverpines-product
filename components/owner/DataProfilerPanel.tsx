@@ -1,63 +1,60 @@
-// components/owner/DataProfilerPanel.tsx
-//
-// Owner-only Data Profiler UI panel.
-//
-// Professional architecture (what this component assumes):
-// - The browser uploads a CSV to YOUR Next.js API gateway endpoint:
-//     POST /api/ml/profile
-// - That route (app/api/ml/profile/route.ts) is responsible for:
-//     1) verifying the user is signed in AND is authorized (ADMIN)
-//     2) forwarding the CSV to the ML microservice container (localhost:8001 internally)
-//     3) returning the profiling JSON back to the browser
-//
-// Why this architecture is the "clean long-term option":
-// - The ML microservice stays private and never needs to be exposed to the public internet.
-// - Auth & RBAC enforcement stays centralized in the Next.js application.
-// - You can add rate limits, logging, auditing, and caching at the gateway.
-// - You can later swap the ML service implementation without breaking the UI contract.
-//
-// IMPORTANT:
-// - This component does NOT require you to create a new components/tools folder.
-//   Your repo currently uses components/owner for owner-only widgets, so we follow that.
-// - This component is intentionally "boring" and robust: correctness first, styling second.
-
 "use client";
 
 import { useMemo, useState } from "react";
 
-type ProfileResponse = any;
+type ProfileResponse = Record<string, unknown>;
 
-/**
- * A small helper to print "human" file sizes (for UX and debugging).
- */
+type ErrorShape = {
+  error?: unknown;
+  message?: unknown;
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getErrorMessage(value: unknown): string | null {
+  if (!isObject(value)) return null;
+
+  const shape = value as ErrorShape;
+
+  if (typeof shape.error === "string") return shape.error;
+  if (typeof shape.message === "string") return shape.message;
+
+  return JSON.stringify(value);
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
+
   const units = ["B", "KB", "MB", "GB"];
-  let i = 0;
-  let v = bytes;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i += 1;
+  let unitIndex = 0;
+  let value = bytes;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
   }
-  return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  return "Unknown error";
 }
 
 export function DataProfilerPanel() {
-  // Selected CSV file from the user.
   const [file, setFile] = useState<File | null>(null);
-
-  // Busy state for button and interaction lock.
   const [busy, setBusy] = useState(false);
-
-  // Error string to display if something fails.
   const [error, setError] = useState<string | null>(null);
-
-  // Successful result payload from the profiler.
   const [result, setResult] = useState<ProfileResponse | null>(null);
 
-  // Useful file metadata for display.
   const fileMeta = useMemo(() => {
     if (!file) return null;
+
     return {
       name: file.name,
       size: file.size,
@@ -66,14 +63,6 @@ export function DataProfilerPanel() {
     };
   }, [file]);
 
-  /**
-   * Upload CSV -> POST /api/ml/profile -> render JSON response
-   *
-   * Implementation details:
-   * - Uses FormData for file upload, which is standard for browsers.
-   * - We do not manually set Content-Type; the browser will include the multipart boundary.
-   * - We handle both non-JSON error bodies and JSON bodies safely.
-   */
   async function runProfiler() {
     if (!file) return;
 
@@ -82,52 +71,46 @@ export function DataProfilerPanel() {
     setResult(null);
 
     try {
-      // Build multipart form payload.
       const form = new FormData();
       form.append("file", file);
 
-      // Call the gateway route inside your Next.js app.
-      // This route should be RBAC-protected (ADMIN) and forward to the ML service.
       const res = await fetch("/api/ml/profile", {
         method: "POST",
         body: form,
       });
 
-      // If the gateway returns an error status, try to extract details for debugging.
       if (!res.ok) {
-        // We try JSON first, then fall back to plain text.
         let detail = "";
         const contentType = res.headers.get("content-type") || "";
+
         if (contentType.includes("application/json")) {
-          const json = await res.json().catch(() => null);
-          if (json && typeof json === "object") {
-            detail =
-              (json.error as string) ||
-              (json.message as string) ||
-              JSON.stringify(json);
-          }
+          const json: unknown = await res.json().catch(() => null);
+          detail = getErrorMessage(json) ?? "";
         } else {
           detail = await res.text().catch(() => "");
         }
 
         throw new Error(
-          `Profiler failed (${res.status} ${res.statusText})${detail ? `: ${detail}` : ""}`
+          `Profiler failed (${res.status} ${res.statusText})${
+            detail ? `: ${detail}` : ""
+          }`
         );
       }
 
-      // Success path: parse JSON response.
-      const json = (await res.json()) as ProfileResponse;
+      const json: unknown = await res.json();
+
+      if (!isObject(json)) {
+        throw new Error("Profiler returned an invalid response shape.");
+      }
+
       setResult(json);
-    } catch (e: any) {
-      setError(e?.message ?? "Unknown error");
+    } catch (err: unknown) {
+      setError(errorToMessage(err));
     } finally {
       setBusy(false);
     }
   }
 
-  /**
-   * Reset the panel state (useful for repeated profiling).
-   */
   function reset() {
     setFile(null);
     setBusy(false);
@@ -144,16 +127,16 @@ export function DataProfilerPanel() {
         background: "rgba(255,255,255,0.04)",
       }}
     >
-      {/* Header */}
       <div style={{ fontSize: 20, fontWeight: 950, letterSpacing: 0.2 }}>
         Data Profiler
       </div>
+
       <div style={{ color: "rgba(255,255,255,0.70)", marginTop: 6 }}>
-        Upload a CSV to compute column types, missingness, basic statistics, and summary metadata.
-        This runs in your ML microservice through your authenticated gateway.
+        Upload a CSV to compute column types, missingness, basic statistics,
+        and summary metadata. This runs in your ML microservice through your
+        authenticated gateway.
       </div>
 
-      {/* Controls */}
       <div
         style={{
           display: "flex",
@@ -167,15 +150,13 @@ export function DataProfilerPanel() {
           background: "rgba(0,0,0,0.40)",
         }}
       >
-        {/* File chooser */}
         <input
           type="file"
           accept=".csv,text/csv"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           style={{ color: "rgba(255,255,255,0.85)" }}
         />
 
-        {/* Run button */}
         <button
           onClick={runProfiler}
           disabled={!file || busy}
@@ -195,7 +176,6 @@ export function DataProfilerPanel() {
           {busy ? "Running..." : "Run Profiler"}
         </button>
 
-        {/* Reset button */}
         <button
           onClick={reset}
           disabled={busy && !result}
@@ -213,7 +193,6 @@ export function DataProfilerPanel() {
           Reset
         </button>
 
-        {/* Selected file metadata */}
         {fileMeta && (
           <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12 }}>
             <div>
@@ -229,7 +208,6 @@ export function DataProfilerPanel() {
         )}
       </div>
 
-      {/* Error block */}
       {error && (
         <div
           style={{
@@ -241,21 +219,33 @@ export function DataProfilerPanel() {
             color: "rgba(255,180,180,0.95)",
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>Profiler Error</div>
-          <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{error}</div>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>
+            Profiler Error
+          </div>
 
-          {/* Debug hint: most common failure mode is the ML container not running */}
-          <div style={{ marginTop: 10, color: "rgba(255,200,200,0.85)", fontSize: 12 }}>
-            Common causes: DB container stopped (auth fails), ML container stopped (gateway fails),
-            or you uploaded a non-CSV file.
+          <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {error}
+          </div>
+
+          <div
+            style={{
+              marginTop: 10,
+              color: "rgba(255,200,200,0.85)",
+              fontSize: 12,
+            }}
+          >
+            Common causes: DB container stopped, ML service stopped, missing
+            ML_SERVICE_URL, or invalid CSV input.
           </div>
         </div>
       )}
 
-      {/* Result viewer */}
       {result && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Profiler Result (JSON)</div>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>
+            Profiler Result JSON
+          </div>
+
           <pre
             style={{
               padding: 14,

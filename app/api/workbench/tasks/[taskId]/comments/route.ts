@@ -2,6 +2,10 @@ import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require";
 import { jsonCreated, jsonError, jsonOk } from "@/lib/http/json";
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ taskId: string }> }
@@ -52,14 +56,20 @@ export async function POST(
     return jsonError(404, "Task not found");
   }
 
-  let body: any;
+  let body: unknown;
+
   try {
     body = await req.json();
   } catch {
     return jsonError(400, "Invalid JSON body");
   }
 
+  if (!isObject(body)) {
+    return jsonError(400, "JSON body must be an object");
+  }
+
   const text = String(body.body ?? "").trim();
+
   if (!text) {
     return jsonError(400, "Comment body is required");
   }

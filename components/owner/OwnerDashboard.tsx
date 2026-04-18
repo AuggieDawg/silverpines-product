@@ -7,7 +7,6 @@ import {
   ArrowRight,
   BarChart3,
   BriefcaseBusiness,
-  Building2,
   CircleDollarSign,
   Database,
   FileBarChart2,
@@ -15,10 +14,8 @@ import {
   LineChart,
   ShieldCheck,
   Sparkles,
-  TrendingDown,
   TrendingUp,
   Users,
-  Wallet,
 } from "lucide-react";
 
 import { DataProfilerPanel } from "@/components/owner/DataProfilerPanel";

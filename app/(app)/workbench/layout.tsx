@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
-import "@/app/globals.css";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/auth/rbac";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -18,7 +17,7 @@ export default async function WorkbenchLayout({
   }
 
   if (!isAdmin(session.user.role)) {
-    redirect("/client");
+    redirect("/not-authorized");
   }
 
   return (

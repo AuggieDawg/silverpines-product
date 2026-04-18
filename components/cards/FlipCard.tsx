@@ -1,20 +1,5 @@
 "use client";
 
-/**
- * components/cards/FlipCard.tsx
- *
- * 3D flip card:
- * - Click toggles rotateY(180deg)
- * - Optional image on front and/or back
- * - Taller card, larger centered image
- * - Red gradient background with black text
- *
- * Notes:
- * - Uses plain <img> so local JPEG/PNG/SVG all work (served from /public).
- * - If an image isn't showing, verify it is in /public and accessible via
- *   http://localhost:3000/<path>.
- */
-
 import { useState } from "react";
 
 type FlipCardProps = {
@@ -34,7 +19,6 @@ export function FlipCard({
 }: FlipCardProps) {
   const [flipped, setFlipped] = useState(false);
 
-  // More prominent + shiny red gradient
   const shinyRed = `
     radial-gradient(circle at 30% 20%, rgba(255,255,255,0.55), rgba(255,255,255,0) 35%),
     linear-gradient(135deg, #ff2b2b 0%, #b30000 55%, #7a0000 100%)
@@ -42,7 +26,7 @@ export function FlipCard({
 
   return (
     <button
-      onClick={() => setFlipped((v) => !v)}
+      onClick={() => setFlipped((value) => !value)}
       style={{
         width: "100%",
         padding: 0,
@@ -54,19 +38,17 @@ export function FlipCard({
       aria-pressed={flipped}
       title="Click to flip"
     >
-      {/* Perspective wrapper */}
       <div
         style={{
           perspective: 1200,
           width: "100%",
         }}
       >
-        {/* Rotating inner card */}
         <div
           style={{
             position: "relative",
             width: "100%",
-            minHeight: 320, // ✅ taller
+            minHeight: 320,
             borderRadius: 18,
             transformStyle: "preserve-3d",
             transition: "transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1)",
@@ -74,7 +56,6 @@ export function FlipCard({
             boxShadow: "0 18px 45px rgba(0,0,0,0.18)",
           }}
         >
-          {/* FRONT */}
           <div
             style={{
               position: "absolute",
@@ -92,14 +73,14 @@ export function FlipCard({
           >
             <div style={{ fontWeight: 900, fontSize: 18 }}>{title}</div>
 
-            {/* Big centered image */}
             {frontImageSrc ? (
               <div style={{ display: "grid", placeItems: "center", flex: 1 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={frontImageSrc}
                   alt={`${title} image`}
                   style={{
-                    width: 96, // ~2.5x your old 38
+                    width: 96,
                     height: 96,
                     objectFit: "cover",
                     borderRadius: 16,
@@ -120,7 +101,6 @@ export function FlipCard({
             </div>
           </div>
 
-          {/* BACK */}
           <div
             style={{
               position: "absolute",
@@ -141,6 +121,7 @@ export function FlipCard({
 
             {backImageSrc ? (
               <div style={{ display: "grid", placeItems: "center", flex: 1 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={backImageSrc}
                   alt={`${title} back image`}

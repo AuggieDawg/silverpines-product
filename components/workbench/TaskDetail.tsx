@@ -33,6 +33,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+function errorToMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "string") return error;
+
+  return fallback;
+}
+
+function errorName(error: unknown) {
+  if (typeof error !== "object" || error === null) return "";
+
+  if ("name" in error) {
+    const name = (error as { name?: unknown }).name;
+    return typeof name === "string" ? name : "";
+  }
+
+  return "";
+}
+
 export function TaskDetail({
   task,
   onEdit,
@@ -76,9 +95,9 @@ export function TaskDetail({
 
     if (!taskId) return;
 
-    loadComments(taskId).catch((e: any) => {
-      if (String(e?.name) === "AbortError") return;
-      setError(e?.message ?? "Failed to load comments");
+    loadComments(taskId).catch((error: unknown) => {
+      if (errorName(error) === "AbortError") return;
+      setError(errorToMessage(error, "Failed to load comments"));
     });
 
     return () => {
@@ -106,8 +125,8 @@ export function TaskDetail({
 
       setComments((prev) => [...prev, comment]);
       setCommentText("");
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to add comment");
+    } catch (error: unknown) {
+      setError(errorToMessage(error, "Failed to add comment"));
     } finally {
       setBusy(false);
     }
@@ -126,8 +145,8 @@ export function TaskDetail({
         });
 
         setComments((prev) => prev.filter((c) => c.id !== commentId));
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to delete comment");
+      } catch (error: unknown) {
+        setError(errorToMessage(error, "Failed to delete comment"));
       } finally {
         setBusy(false);
       }

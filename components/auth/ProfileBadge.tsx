@@ -1,20 +1,5 @@
 "use client";
 
-/**
- * components/auth/ProfileBadge.tsx
- *
- * Minimal profile badge:
- * - Fetches session from /api/auth/session (NextAuth v4)
- * - Displays Google profile image + email when available
- *
- * Why this approach:
- * - Avoids adding SessionProvider complexity right now
- * - Still gives you a real "profile pic" UI element
- *
- * Later:
- * - Add a user-uploaded avatar stored in DB or object storage
- */
-
 import { useEffect, useState } from "react";
 
 type SessionUser = {
@@ -33,20 +18,24 @@ export function ProfileBadge() {
 
   useEffect(() => {
     fetch("/api/auth/session")
-      .then((r) => r.json())
-      .then((data) => setSession(data))
+      .then((response) => response.json())
+      .then((data: SessionResponse) => setSession(data))
       .catch(() => setSession(null));
   }, []);
 
   const user = session?.user;
+
   if (!user?.email) return null;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       {user.image ? (
+        // Google profile images are external and dynamic. Keeping a plain img
+        // here avoids adding brittle remote image config for this small avatar.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={user.image}
-          alt="Profile"
+          alt={user.name ? `${user.name} profile` : "Profile"}
           width={34}
           height={34}
           style={{ borderRadius: 999, border: "1px solid #ddd" }}

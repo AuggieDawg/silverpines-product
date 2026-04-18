@@ -3,8 +3,6 @@
 import { useMemo } from "react";
 import type { WorkbenchTaskDTO } from "./types";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function parseDate(dateString: string) {
   const [year, month, day] = dateString.split("-").map(Number);
   return new Date(year, month - 1, day, 12, 0, 0, 0);
@@ -24,6 +22,7 @@ function addDays(date: Date, days: number) {
 
 function formatDate(dateString: string | null) {
   if (!dateString) return "Unscheduled";
+
   return parseDate(dateString).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -94,6 +93,7 @@ export function WeeklyView({
       if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
+
       return parseDate(a.dueDate).getTime() - parseDate(b.dueDate).getTime();
     };
 
@@ -174,6 +174,7 @@ export function WeeklyView({
                 </h3>
                 <p className="mt-1 text-xs text-white/45">{bucket.subtitle}</p>
               </div>
+
               <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
                 {bucket.tasks.length}
               </div>
@@ -181,7 +182,8 @@ export function WeeklyView({
 
             {bucket.tasks.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-white/45">
-                No tasks in this bucket.
+                No tasks in this bucket yet. Add due dates and move tasks
+                through statuses to make this view useful.
               </div>
             ) : (
               <div className="space-y-2">

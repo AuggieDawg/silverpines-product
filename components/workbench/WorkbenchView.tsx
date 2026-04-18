@@ -2,25 +2,50 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
+  CheckCircle2,
   LayoutGrid,
   Network,
   Plus,
+  Save,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
-import { TaskTable } from "./TaskTable";
-import { TaskDetail } from "./TaskDetail";
-import { RelationshipMap } from "./RelationshipMap";
+
 import { InspectorPanel } from "./InspectorPanel";
+import { RelationshipMap } from "./RelationshipMap";
+import { TaskDetail } from "./TaskDetail";
 import { TaskEditorModal } from "./TaskEditorModal";
+import { TaskTable } from "./TaskTable";
 import type { WorkbenchTaskDTO, WorkbenchTaskLinkDTO } from "./types";
 
 type WorkbenchTaskUpsert = Omit<WorkbenchTaskDTO, "id" | "mapX" | "mapY">;
 
-type TasksResponse = {
-  tasks: any[];
-  links: any[];
+type RawWorkbenchTask = {
+  id?: unknown;
+  title?: unknown;
+  client?: unknown;
+  dueDate?: unknown;
+  assignee?: unknown;
+  status?: unknown;
+  priority?: unknown;
+  mapX?: unknown;
+  mapY?: unknown;
 };
+
+type RawWorkbenchTaskLink = {
+  id?: unknown;
+  sourceTaskId?: unknown;
+  targetTaskId?: unknown;
+};
+
+type TasksResponse = {
+  tasks: RawWorkbenchTask[];
+  links: RawWorkbenchTaskLink[];
+};
+
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 const STATUS_FILTERS = [
   "All",
@@ -51,6 +76,19 @@ const SHELL_ACTIVE_TAB_STORAGE_KEY = "workbench:shell-active-tab:v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const TAB_DESCRIPTIONS: Record<ShellTabId, string> = {
+  Workbench:
+    "Map tasks visually, inspect relationships, and manage the core execution surface.",
+  Weekly:
+    "Prioritize what is late, what is imminent, and what needs a due date.",
+  Timeline:
+    "Reschedule tasks and inspect due-date flow across the active planning window.",
+  Milestones:
+    "Track execution gates, review states, risk items, and completed proof of progress.",
+  Notes:
+    "Capture task-level decisions, comments, reminders, and execution context.",
+};
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -71,27 +109,45 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-function mapTask(task: any): WorkbenchTaskDTO {
+function isWorkbenchTaskStatus(
+  value: unknown
+): value is WorkbenchTaskDTO["status"] {
+  return (
+    value === "Open" ||
+    value === "InProgress" ||
+    value === "Review" ||
+    value === "Completed" ||
+    value === "Overdue"
+  );
+}
+
+function isWorkbenchTaskPriority(
+  value: unknown
+): value is WorkbenchTaskDTO["priority"] {
+  return value === "Low" || value === "Medium" || value === "High";
+}
+
+function mapTask(task: RawWorkbenchTask): WorkbenchTaskDTO {
   return {
-    id: task.id,
-    title: task.title,
-    client: task.client,
+    id: String(task.id ?? ""),
+    title: String(task.title ?? ""),
+    client: String(task.client ?? ""),
     dueDate: task.dueDate
-      ? new Date(task.dueDate).toISOString().slice(0, 10)
+      ? new Date(String(task.dueDate)).toISOString().slice(0, 10)
       : null,
-    assignee: task.assignee,
-    status: task.status,
-    priority: task.priority,
+    assignee: String(task.assignee ?? ""),
+    status: isWorkbenchTaskStatus(task.status) ? task.status : "Open",
+    priority: isWorkbenchTaskPriority(task.priority) ? task.priority : "Medium",
     mapX: typeof task.mapX === "number" ? task.mapX : 40,
     mapY: typeof task.mapY === "number" ? task.mapY : 40,
   };
 }
 
-function mapLink(link: any): WorkbenchTaskLinkDTO {
+function mapLink(link: RawWorkbenchTaskLink): WorkbenchTaskLinkDTO {
   return {
-    id: link.id,
-    sourceTaskId: link.sourceTaskId,
-    targetTaskId: link.targetTaskId,
+    id: String(link.id ?? ""),
+    sourceTaskId: String(link.sourceTaskId ?? ""),
+    targetTaskId: String(link.targetTaskId ?? ""),
   };
 }
 
@@ -110,6 +166,7 @@ function isValidShellTabOrder(value: unknown): value is ShellTabId[] {
   if (value.length !== DEFAULT_SHELL_TABS.length) return false;
 
   const set = new Set(value);
+
   if (set.size !== DEFAULT_SHELL_TABS.length) return false;
 
   return DEFAULT_SHELL_TABS.every((tab) => set.has(tab));
@@ -154,6 +211,14 @@ function formatShortDueDate(dateString: string | null) {
   });
 }
 
+function toInputDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function toneForStatus(status: WorkbenchTaskDTO["status"]) {
   switch (status) {
     case "Completed":
@@ -195,7 +260,35 @@ function moveTab(order: ShellTabId[], fromId: ShellTabId, toId: ShellTabId) {
 
   const [moved] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, moved);
+
   return next;
+}
+
+function SaveStateBadge({ value }: { value: SaveState }) {
+  if (value === "saving") {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-100">
+        <Save className="h-3.5 w-3.5 animate-pulse" />
+        Saving
+      </span>
+    );
+  }
+
+  if (value === "error") {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1 text-xs font-semibold text-rose-100">
+        <AlertCircle className="h-3.5 w-3.5" />
+        Save failed
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+      <CheckCircle2 className="h-3.5 w-3.5" />
+      Saved
+    </span>
+  );
 }
 
 function ShellTabs({
@@ -231,6 +324,7 @@ function ShellTabs({
             onDrop={(event) => {
               event.preventDefault();
               if (!draggingId || draggingId === tab) return;
+
               onReorder(moveTab(order, draggingId, tab));
               setDraggingId(null);
             }}
@@ -251,27 +345,65 @@ function ShellTabs({
   );
 }
 
-function PlaceholderPanel({
+function EmptyState({
   title,
   body,
+  actionLabel,
+  onAction,
 }: {
   title: string;
   body: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#070A10] p-5">
-      <div className="max-w-xl">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-          Reserved
-        </div>
-        <h3 className="mt-2 text-lg font-semibold text-white">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-white/55">{body}</p>
-      </div>
+    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5">
+      <div className="text-sm font-semibold text-white">{title}</div>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-white/45">{body}</p>
 
-      <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-white/40">
-        This tab is intentionally empty for now.
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkbenchStatCard({
+  label,
+  value,
+  helper,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  tone?: "neutral" | "sky" | "rose" | "amber" | "emerald";
+}) {
+  const toneClass =
+    tone === "sky"
+      ? "border-sky-500/20 bg-sky-500/5"
+      : tone === "rose"
+        ? "border-rose-500/20 bg-rose-500/5"
+        : tone === "amber"
+          ? "border-amber-500/20 bg-amber-500/5"
+          : tone === "emerald"
+            ? "border-emerald-500/20 bg-emerald-500/5"
+            : "border-white/10 bg-white/[0.03]";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+        {label}
       </div>
-    </section>
+      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-sm text-white/55">{helper}</div>
+    </div>
   );
 }
 
@@ -279,10 +411,12 @@ function WeeklyView({
   tasks,
   selectedTaskId,
   onSelectTask,
+  onCreateTask,
 }: {
   tasks: WorkbenchTaskDTO[];
   selectedTaskId?: string;
   onSelectTask?: (taskId: string) => void;
+  onCreateTask?: () => void;
 }) {
   const today = useMemo(() => startOfDay(new Date()), []);
   const weekEnd = useMemo(() => addDays(today, 7), [today]);
@@ -318,6 +452,7 @@ function WeeklyView({
       if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
+
       return parseDate(a.dueDate).getTime() - parseDate(b.dueDate).getTime();
     };
 
@@ -350,39 +485,37 @@ function WeeklyView({
     ];
   }, [tasks, today, weekEnd]);
 
+  if (tasks.length === 0) {
+    return (
+      <EmptyState
+        title="No weekly plan yet"
+        body="Create tasks and assign due dates. The weekly view will automatically separate overdue work, near-term work, future work, and unscheduled items."
+        actionLabel="Create first task"
+        onAction={onCreateTask}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-            Horizon
-          </div>
-          <div className="mt-2 text-lg font-semibold text-white">Weekly</div>
-          <div className="mt-1 text-sm text-white/55">
-            A focused view of what is late, what is imminent, and what still
-            needs commitment.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-rose-200/70">
-            Critical
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {buckets[0]?.tasks.length ?? 0}
-          </div>
-          <div className="mt-1 text-sm text-white/55">Overdue tasks</div>
-        </div>
-
-        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-sky-200/70">
-            Immediate
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {buckets[1]?.tasks.length ?? 0}
-          </div>
-          <div className="mt-1 text-sm text-white/55">Due within 7 days</div>
-        </div>
+        <WorkbenchStatCard
+          label="Horizon"
+          value="Weekly"
+          helper="Focused execution view"
+        />
+        <WorkbenchStatCard
+          label="Critical"
+          value={buckets[0]?.tasks.length ?? 0}
+          helper="Overdue tasks"
+          tone="rose"
+        />
+        <WorkbenchStatCard
+          label="Immediate"
+          value={buckets[1]?.tasks.length ?? 0}
+          helper="Due within 7 days"
+          tone="sky"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -398,15 +531,17 @@ function WeeklyView({
                 </h3>
                 <p className="mt-1 text-xs text-white/45">{bucket.subtitle}</p>
               </div>
+
               <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
                 {bucket.tasks.length}
               </div>
             </div>
 
             {bucket.tasks.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-white/45">
-                No tasks in this bucket.
-              </div>
+              <EmptyState
+                title="No tasks in this bucket"
+                body="As tasks get dates and status updates, this section will populate automatically."
+              />
             ) : (
               <div className="space-y-2">
                 {bucket.tasks.map((task) => {
@@ -465,10 +600,17 @@ function LinearTimelineView({
   tasks,
   selectedTaskId,
   onSelectTask,
+  onUpdateTask,
+  onCreateTask,
 }: {
   tasks: WorkbenchTaskDTO[];
   selectedTaskId?: string;
   onSelectTask?: (taskId: string) => void;
+  onUpdateTask?: (
+    taskId: string,
+    patch: Partial<WorkbenchTaskUpsert>
+  ) => Promise<void>;
+  onCreateTask?: () => void;
 }) {
   const today = useMemo(() => startOfDay(new Date()), []);
 
@@ -487,19 +629,30 @@ function LinearTimelineView({
     [tasks]
   );
 
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId),
+    [tasks, selectedTaskId]
+  );
+
   const windowStart = useMemo(() => {
-    if (!scheduled.length) return addDays(today, -7);
-    const earliest = scheduled[0].due;
-    const paddedEarliest = addDays(earliest, -5);
+    const first = scheduled[0];
+
+    if (!first) return addDays(today, -7);
+
+    const paddedEarliest = addDays(first.due, -5);
+
     return paddedEarliest < addDays(today, -7)
       ? paddedEarliest
       : addDays(today, -7);
   }, [scheduled, today]);
 
   const windowEnd = useMemo(() => {
-    if (!scheduled.length) return addDays(today, 21);
-    const latest = scheduled[scheduled.length - 1].due;
-    const paddedLatest = addDays(latest, 10);
+    const last = scheduled[scheduled.length - 1];
+
+    if (!last) return addDays(today, 21);
+
+    const paddedLatest = addDays(last.due, 10);
+
     return paddedLatest > addDays(today, 21)
       ? paddedLatest
       : addDays(today, 21);
@@ -517,11 +670,13 @@ function LinearTimelineView({
 
   const ticks = useMemo(() => {
     const values: Date[] = [];
+
     for (let offset = 0; offset <= totalDays; offset += 7) {
       values.push(addDays(windowStart, offset));
     }
 
     const lastTick = values[values.length - 1];
+
     if (!lastTick || diffInDays(lastTick, windowEnd) > 0) {
       values.push(windowEnd);
     }
@@ -531,6 +686,7 @@ function LinearTimelineView({
 
   const dueThisWeek = useMemo(() => {
     const sevenDaysOut = addDays(today, 7);
+
     return scheduled.filter(
       ({ due, task }) =>
         due >= today && due <= sevenDaysOut && task.status !== "Completed"
@@ -548,53 +704,122 @@ function LinearTimelineView({
     return Math.min(100, Math.max(0, (days / totalDays) * 100));
   };
 
+  const rescheduleSelectedTask = async (dueDate: string | null) => {
+    if (!selectedTask || !onUpdateTask) return;
+
+    await onUpdateTask(selectedTask.id, { dueDate });
+  };
+
+  const shiftSelectedTask = async (days: number) => {
+    if (!selectedTask || !onUpdateTask) return;
+
+    const base = selectedTask.dueDate ? parseDate(selectedTask.dueDate) : today;
+    const next = addDays(base, days);
+
+    await onUpdateTask(selectedTask.id, { dueDate: toInputDate(next) });
+  };
+
+  if (tasks.length === 0) {
+    return (
+      <EmptyState
+        title="No timeline yet"
+        body="Create tasks and assign due dates. The timeline becomes useful once tasks have a committed schedule."
+        actionLabel="Create first task"
+        onAction={onCreateTask}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-            View
-          </div>
-          <div className="mt-2 text-lg font-semibold text-white">
-            Linear timeline
-          </div>
-          <div className="mt-1 text-sm text-white/55">
-            Due-date driven, no schema migration required.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-rose-200/70">
-            Risk
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {overdueCount}
-          </div>
-          <div className="mt-1 text-sm text-white/55">Overdue tasks</div>
-        </div>
-
-        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-sky-200/70">
-            Near-term
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {dueThisWeek}
-          </div>
-          <div className="mt-1 text-sm text-white/55">Due within 7 days</div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-            Unscheduled
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {unscheduled.length}
-          </div>
-          <div className="mt-1 text-sm text-white/55">Needs commitment</div>
-        </div>
+        <WorkbenchStatCard
+          label="View"
+          value="Timeline"
+          helper="Due-date driven planning"
+        />
+        <WorkbenchStatCard
+          label="Risk"
+          value={overdueCount}
+          helper="Overdue tasks"
+          tone="rose"
+        />
+        <WorkbenchStatCard
+          label="Near-term"
+          value={dueThisWeek}
+          helper="Due within 7 days"
+          tone="sky"
+        />
+        <WorkbenchStatCard
+          label="Unscheduled"
+          value={unscheduled.length}
+          helper="Needs commitment"
+        />
       </div>
 
       <section className="rounded-3xl border border-white/10 bg-[#070A10] p-4">
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                Timeline control
+              </div>
+              <div className="mt-2 text-sm font-semibold text-white">
+                {selectedTask ? selectedTask.title : "No task selected"}
+              </div>
+              <div className="mt-1 text-xs text-white/50">
+                Select a task, then reschedule it here. This writes back to the
+                task record.
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={selectedTask?.dueDate ?? ""}
+                disabled={!selectedTask || !onUpdateTask}
+                onChange={(event) => {
+                  void rescheduleSelectedTask(event.target.value || null);
+                }}
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              />
+
+              <button
+                type="button"
+                disabled={!selectedTask || !onUpdateTask}
+                onClick={() => {
+                  void shiftSelectedTask(1);
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                +1 day
+              </button>
+
+              <button
+                type="button"
+                disabled={!selectedTask || !onUpdateTask}
+                onClick={() => {
+                  void shiftSelectedTask(7);
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                +1 week
+              </button>
+
+              <button
+                type="button"
+                disabled={!selectedTask || !onUpdateTask}
+                onClick={() => {
+                  void rescheduleSelectedTask(null);
+                }}
+                className="rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-sm text-rose-200 hover:bg-rose-500/14 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear date
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-[minmax(0,220px)_1fr_110px] md:items-end">
           <div>
             <h3 className="text-sm font-semibold text-white">Scheduled tasks</h3>
@@ -606,6 +831,7 @@ function LinearTimelineView({
           <div className="relative h-8">
             {ticks.map((tick) => {
               const left = positionForDate(tick);
+
               return (
                 <div
                   key={tick.toISOString()}
@@ -637,8 +863,11 @@ function LinearTimelineView({
         </div>
 
         {!scheduled.length ? (
-          <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-white/45">
-            No scheduled tasks yet. Add due dates and the timeline becomes useful.
+          <div className="mt-4">
+            <EmptyState
+              title="No scheduled tasks yet"
+              body="Add due dates and the timeline becomes useful. Unscheduled tasks are still visible below."
+            />
           </div>
         ) : (
           <div className="mt-5 space-y-3">
@@ -738,9 +967,10 @@ function LinearTimelineView({
         </div>
 
         {unscheduled.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-white/45">
-            Everything in the current result set has a due date.
-          </div>
+          <EmptyState
+            title="Everything is scheduled"
+            body="All visible tasks have a due date and can be inspected on the timeline."
+          />
         ) : (
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {unscheduled.map((task) => {
@@ -759,7 +989,9 @@ function LinearTimelineView({
                       : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                   ].join(" ")}
                 >
-                  <div className="text-sm font-semibold text-white">{task.title}</div>
+                  <div className="text-sm font-semibold text-white">
+                    {task.title}
+                  </div>
                   <div className="mt-1 text-xs text-white/50">
                     {task.client} • {task.assignee}
                   </div>
@@ -781,6 +1013,313 @@ function LinearTimelineView({
   );
 }
 
+function MilestonesView({
+  tasks,
+  selectedTaskId,
+  onSelectTask,
+  onEditTask,
+  onCreateTask,
+}: {
+  tasks: WorkbenchTaskDTO[];
+  selectedTaskId?: string;
+  onSelectTask?: (taskId: string) => void;
+  onEditTask?: (taskId: string) => void;
+  onCreateTask?: () => void;
+}) {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.status === "Completed");
+  const inProgress = tasks.filter((task) => task.status === "InProgress");
+  const review = tasks.filter((task) => task.status === "Review");
+  const overdue = tasks.filter((task) => task.status === "Overdue");
+  const unscheduled = tasks.filter((task) => !task.dueDate);
+  const highPriority = tasks.filter((task) => task.priority === "High");
+
+  const completionRate =
+    total === 0 ? 0 : Math.round((completed.length / total) * 100);
+
+  const riskTasks = [
+    ...new Map(
+      [...overdue, ...highPriority].map((task) => [task.id, task])
+    ).values(),
+  ];
+
+  const milestoneGroups = [
+    {
+      title: "Execution",
+      subtitle: "Open or in-progress work that still needs movement",
+      tasks: tasks.filter(
+        (task) => task.status === "Open" || task.status === "InProgress"
+      ),
+    },
+    {
+      title: "Review gate",
+      subtitle: "Items waiting for decision, QA, or owner approval",
+      tasks: review,
+    },
+    {
+      title: "Risk gate",
+      subtitle: "Overdue or high-priority work that can block demos",
+      tasks: riskTasks,
+    },
+    {
+      title: "Completed",
+      subtitle: "Finished work that can be used as proof of progress",
+      tasks: completed,
+    },
+  ];
+
+  if (tasks.length === 0) {
+    return (
+      <EmptyState
+        title="No milestones yet"
+        body="Create tasks and move them through Open → InProgress → Review → Completed. Milestones will populate automatically from task statuses."
+        actionLabel="Create first task"
+        onAction={onCreateTask}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-5">
+        <WorkbenchStatCard
+          label="Completion"
+          value={`${completionRate}%`}
+          helper={`${completed.length} of ${total} tasks`}
+          tone="emerald"
+        />
+        <WorkbenchStatCard
+          label="In progress"
+          value={inProgress.length}
+          helper="Active execution"
+          tone="sky"
+        />
+        <WorkbenchStatCard
+          label="Review"
+          value={review.length}
+          helper="Decision gate"
+          tone="amber"
+        />
+        <WorkbenchStatCard
+          label="Risk"
+          value={overdue.length}
+          helper="Overdue tasks"
+          tone="rose"
+        />
+        <WorkbenchStatCard
+          label="Unscheduled"
+          value={unscheduled.length}
+          helper="Needs due date"
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {milestoneGroups.map((group) => (
+          <section
+            key={group.title}
+            className="rounded-3xl border border-white/10 bg-[#070A10] p-4"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  {group.title}
+                </h3>
+                <p className="mt-1 text-xs text-white/45">{group.subtitle}</p>
+              </div>
+
+              <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                {group.tasks.length}
+              </div>
+            </div>
+
+            {group.tasks.length === 0 ? (
+              <EmptyState
+                title="No tasks in this milestone group"
+                body="This section fills automatically as tasks change status and priority."
+              />
+            ) : (
+              <div className="space-y-2">
+                {group.tasks.map((task) => {
+                  const active = selectedTaskId === task.id;
+                  const tone = toneForStatus(task.status);
+
+                  return (
+                    <div
+                      key={`${group.title}-${task.id}`}
+                      className={[
+                        "rounded-2xl border p-3 transition",
+                        active
+                          ? "border-sky-300/45 bg-sky-300/10"
+                          : "border-white/10 bg-white/[0.03]",
+                      ].join(" ")}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectTask?.(task.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-white">
+                              {task.title}
+                            </div>
+                            <div className="mt-1 text-xs text-white/50">
+                              {task.client} • {task.assignee}
+                            </div>
+                          </div>
+
+                          <span
+                            className={[
+                              "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                              tone.pill,
+                            ].join(" ")}
+                          >
+                            {task.status}
+                          </span>
+                        </div>
+                      </button>
+
+                      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-white/55">
+                        <span>Due {formatShortDueDate(task.dueDate)}</span>
+                        <button
+                          type="button"
+                          onClick={() => onEditTask?.(task.id)}
+                          className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-white/75 hover:bg-white/10"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NotesView({
+  tasks,
+  selectedTask,
+  selectedTaskId,
+  onSelectTask,
+  onEditTask,
+  onCreateTask,
+}: {
+  tasks: WorkbenchTaskDTO[];
+  selectedTask?: WorkbenchTaskDTO;
+  selectedTaskId?: string;
+  onSelectTask?: (taskId: string) => void;
+  onEditTask?: (taskId: string) => void;
+  onCreateTask?: () => void;
+}) {
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+
+      return parseDate(a.dueDate).getTime() - parseDate(b.dueDate).getTime();
+    });
+  }, [tasks]);
+
+  if (tasks.length === 0) {
+    return (
+      <EmptyState
+        title="No notes yet"
+        body="Create a task first. Each task gets its own persistent conversation log through the comments system."
+        actionLabel="Create first task"
+        onAction={onCreateTask}
+      />
+    );
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
+      <section className="rounded-3xl border border-white/10 bg-[#070A10] p-4">
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-white">Task notes</h3>
+          <p className="mt-1 text-xs leading-5 text-white/45">
+            Select a task to open its conversation log. Notes are stored as
+            Workbench comments, so they persist through reloads.
+          </p>
+        </div>
+
+        <div className="max-h-[720px] space-y-2 overflow-y-auto pr-1">
+          {sortedTasks.map((task) => {
+            const active = task.id === selectedTaskId;
+            const tone = toneForStatus(task.status);
+
+            return (
+              <button
+                key={task.id}
+                type="button"
+                onClick={() => onSelectTask?.(task.id)}
+                className={[
+                  "w-full rounded-2xl border p-3 text-left transition",
+                  active
+                    ? "border-sky-300/45 bg-sky-300/10"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                ].join(" ")}
+              >
+                <div className="truncate text-sm font-semibold text-white">
+                  {task.title}
+                </div>
+
+                <div className="mt-1 text-xs text-white/50">
+                  {task.client} • Due {formatShortDueDate(task.dueDate)}
+                </div>
+
+                <div
+                  className={[
+                    "mt-3 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                    tone.pill,
+                  ].join(" ")}
+                >
+                  {task.status}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-[#070A10] p-4">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-white">
+              Conversation log
+            </h3>
+            <p className="mt-1 text-xs text-white/45">
+              Notes, decisions, and task comments for the selected work item.
+            </p>
+          </div>
+
+          {selectedTask ? (
+            <button
+              type="button"
+              onClick={() => onEditTask?.(selectedTask.id)}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+            >
+              Edit task
+            </button>
+          ) : null}
+        </div>
+
+        <TaskDetail
+          task={selectedTask}
+          onEdit={
+            selectedTask ? () => onEditTask?.(selectedTask.id) : undefined
+          }
+        />
+      </section>
+    </div>
+  );
+}
+
 export default function WorkbenchView() {
   const [loading, setLoading] = useState(true);
   const [tasksRaw, setTasksRaw] = useState<WorkbenchTaskDTO[]>([]);
@@ -794,6 +1333,16 @@ export default function WorkbenchView() {
     useState<ShellTabId[]>(DEFAULT_SHELL_TABS);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+
+  const markSaved = useCallback(() => {
+    setSaveState("saved");
+    window.setTimeout(() => setSaveState("idle"), 1600);
+  }, []);
+
+  const markSaveError = useCallback(() => {
+    setSaveState("error");
+  }, []);
 
   const loadWorkbench = useCallback(async () => {
     const { tasks, links } = await api<TasksResponse>("/api/workbench/tasks");
@@ -811,7 +1360,9 @@ export default function WorkbenchView() {
     (async () => {
       try {
         setLoading(true);
-        const { tasks, links } = await api<TasksResponse>("/api/workbench/tasks");
+        const { tasks, links } = await api<TasksResponse>(
+          "/api/workbench/tasks"
+        );
 
         if (!mounted) return;
 
@@ -823,6 +1374,7 @@ export default function WorkbenchView() {
         setSelectedId((prev) => prev || mappedTasks[0]?.id || "");
       } catch (error) {
         console.error("Failed to load workbench", error);
+        markSaveError();
       } finally {
         if (mounted) setLoading(false);
       }
@@ -831,7 +1383,7 @@ export default function WorkbenchView() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [markSaveError]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -842,6 +1394,7 @@ export default function WorkbenchView() {
 
       if (rawOrder) {
         const parsed = JSON.parse(rawOrder) as unknown;
+
         if (isValidShellTabOrder(parsed)) {
           setShellTabOrder(parsed);
         }
@@ -857,6 +1410,7 @@ export default function WorkbenchView() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     window.localStorage.setItem(
       SHELL_TAB_ORDER_STORAGE_KEY,
       JSON.stringify(shellTabOrder)
@@ -865,6 +1419,7 @@ export default function WorkbenchView() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     window.localStorage.setItem(SHELL_ACTIVE_TAB_STORAGE_KEY, shellTab);
   }, [shellTab]);
 
@@ -882,6 +1437,7 @@ export default function WorkbenchView() {
         if (!query.trim()) return true;
 
         const q = query.toLowerCase();
+
         return (
           task.title.toLowerCase().includes(q) ||
           task.client.toLowerCase().includes(q) ||
@@ -903,6 +1459,31 @@ export default function WorkbenchView() {
     );
   }, [linksRaw, visibleTaskIds]);
 
+  const summary = useMemo(() => {
+    const today = startOfDay(new Date());
+    const weekEnd = addDays(today, 7);
+
+    const overdue = tasksRaw.filter((task) => {
+      if (!task.dueDate || task.status === "Completed") return false;
+      return startOfDay(parseDate(task.dueDate)) < today;
+    }).length;
+
+    const dueThisWeek = tasksRaw.filter((task) => {
+      if (!task.dueDate || task.status === "Completed") return false;
+
+      const due = startOfDay(parseDate(task.dueDate));
+      return due >= today && due <= weekEnd;
+    }).length;
+
+    return {
+      total: tasksRaw.length,
+      overdue,
+      dueThisWeek,
+      review: tasksRaw.filter((task) => task.status === "Review").length,
+      completed: tasksRaw.filter((task) => task.status === "Completed").length,
+    };
+  }, [tasksRaw]);
+
   const openCreate = () => {
     setEditorMode("create");
     setEditorOpen(true);
@@ -915,40 +1496,65 @@ export default function WorkbenchView() {
   };
 
   const createTask = async (payload: WorkbenchTaskUpsert) => {
-    const { task } = await api<{ task: any }>("/api/workbench/tasks", {
-      method: "POST",
-      body: JSON.stringify({
-        ...payload,
-        dueDate: payload.dueDate ? payload.dueDate : null,
-      }),
-    });
+    setSaveState("saving");
 
-    const mapped = mapTask(task);
-    setTasksRaw((prev) => [mapped, ...prev]);
-    setSelectedId(mapped.id);
+    try {
+      const { task } = await api<{ task: RawWorkbenchTask }>(
+        "/api/workbench/tasks",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...payload,
+            dueDate: payload.dueDate ? payload.dueDate : null,
+          }),
+        }
+      );
+
+      const mapped = mapTask(task);
+
+      setTasksRaw((prev) => [mapped, ...prev]);
+      setSelectedId(mapped.id);
+      markSaved();
+    } catch (error) {
+      markSaveError();
+      throw error;
+    }
   };
 
   const updateTask = async (
     taskId: string,
     patch: Partial<WorkbenchTaskUpsert>
   ) => {
-    const { task } = await api<{ task: any }>(`/api/workbench/tasks/${taskId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        ...patch,
-        dueDate:
-          patch.dueDate !== undefined
-            ? patch.dueDate
-              ? patch.dueDate
-              : null
-            : undefined,
-      }),
-    });
+    setSaveState("saving");
 
-    const mapped = mapTask(task);
-    setTasksRaw((prev) =>
-      prev.map((existing) => (existing.id === taskId ? mapped : existing))
-    );
+    try {
+      const { task } = await api<{ task: RawWorkbenchTask }>(
+        `/api/workbench/tasks/${taskId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...patch,
+            dueDate:
+              patch.dueDate !== undefined
+                ? patch.dueDate
+                  ? patch.dueDate
+                  : null
+                : undefined,
+          }),
+        }
+      );
+
+      const mapped = mapTask(task);
+
+      setTasksRaw((prev) =>
+        prev.map((existing) => (existing.id === taskId ? mapped : existing))
+      );
+
+      markSaved();
+    } catch (error) {
+      markSaveError();
+      throw error;
+    }
   };
 
   const updateTaskPosition = async (
@@ -962,67 +1568,118 @@ export default function WorkbenchView() {
       )
     );
 
+    setSaveState("saving");
+
     try {
-      await api<{ task: any }>(`/api/workbench/tasks/${taskId}`, {
+      await api<{ task: RawWorkbenchTask }>(`/api/workbench/tasks/${taskId}`, {
         method: "PATCH",
         body: JSON.stringify({ mapX, mapY }),
       });
+
+      markSaved();
     } catch (error) {
       console.error("Failed to persist task position", error);
+      markSaveError();
       await loadWorkbench();
     }
   };
 
   const createLink = async (sourceTaskId: string, targetTaskId: string) => {
-    const { link } = await api<{ link: any }>("/api/workbench/task-links", {
-      method: "POST",
-      body: JSON.stringify({ sourceTaskId, targetTaskId }),
-    });
+    setSaveState("saving");
 
-    const mapped = mapLink(link);
-
-    setLinksRaw((prev) => {
-      const exists = prev.some(
-        (existing) =>
-          existing.id === mapped.id ||
-          (existing.sourceTaskId === mapped.sourceTaskId &&
-            existing.targetTaskId === mapped.targetTaskId)
+    try {
+      const { link } = await api<{ link: RawWorkbenchTaskLink }>(
+        "/api/workbench/task-links",
+        {
+          method: "POST",
+          body: JSON.stringify({ sourceTaskId, targetTaskId }),
+        }
       );
 
-      return exists ? prev : [...prev, mapped];
-    });
+      const mapped = mapLink(link);
+
+      setLinksRaw((prev) => {
+        const exists = prev.some(
+          (existing) =>
+            existing.id === mapped.id ||
+            (existing.sourceTaskId === mapped.sourceTaskId &&
+              existing.targetTaskId === mapped.targetTaskId)
+        );
+
+        return exists ? prev : [...prev, mapped];
+      });
+
+      markSaved();
+    } catch (error) {
+      markSaveError();
+      throw error;
+    }
   };
 
   const deleteLink = async (linkId: string) => {
     const previous = linksRaw;
+
     setLinksRaw((prev) => prev.filter((link) => link.id !== linkId));
+    setSaveState("saving");
 
     try {
       await api(`/api/workbench/task-links/${linkId}`, {
         method: "DELETE",
       });
+
+      markSaved();
     } catch (error) {
       console.error("Failed to delete link", error);
       setLinksRaw(previous);
+      markSaveError();
     }
   };
 
   const deleteTask = async (taskId: string) => {
-    await api(`/api/workbench/tasks/${taskId}`, {
-      method: "DELETE",
-    });
+    const task = tasksRaw.find((item) => item.id === taskId);
+    const label = task?.title ? `"${task.title}"` : "this task";
 
-    setTasksRaw((prev) => prev.filter((task) => task.id !== taskId));
-    setLinksRaw((prev) =>
-      prev.filter(
-        (link) =>
-          link.sourceTaskId !== taskId && link.targetTaskId !== taskId
-      )
-    );
-    setSelectedId((prev) => (prev === taskId ? "" : prev));
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`Delete ${label}? This also removes its links and comments.`)
+    ) {
+      return;
+    }
+
+    setSaveState("saving");
+
+    try {
+      await api(`/api/workbench/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+
+      setTasksRaw((prev) => prev.filter((task) => task.id !== taskId));
+      setLinksRaw((prev) =>
+        prev.filter(
+          (link) =>
+            link.sourceTaskId !== taskId && link.targetTaskId !== taskId
+        )
+      );
+      setSelectedId((prev) => (prev === taskId ? "" : prev));
+      markSaved();
+    } catch (error) {
+      markSaveError();
+      throw error;
+    }
   };
 
   const renderWorkbenchPane = () => {
+    if (!tasksRaw.length && !loading) {
+      return (
+        <EmptyState
+          title="No Workbench tasks yet"
+          body="Create your first task to activate the table, map, weekly planning, timeline, milestones, and notes surfaces."
+          actionLabel="Create first task"
+          onAction={openCreate}
+        />
+      );
+    }
+
     return (
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
         <div className="grid gap-4">
@@ -1108,6 +1765,7 @@ export default function WorkbenchView() {
             tasks={tasks}
             selectedTaskId={selected?.id}
             onSelectTask={setSelectedId}
+            onCreateTask={openCreate}
           />
         );
 
@@ -1117,22 +1775,31 @@ export default function WorkbenchView() {
             tasks={tasks}
             selectedTaskId={selected?.id}
             onSelectTask={setSelectedId}
+            onUpdateTask={updateTask}
+            onCreateTask={openCreate}
           />
         );
 
       case "Milestones":
         return (
-          <PlaceholderPanel
-            title="Milestones"
-            body="This should become the executive checkpoint layer: launches, approvals, deliverables, and major gates."
+          <MilestonesView
+            tasks={tasks}
+            selectedTaskId={selected?.id}
+            onSelectTask={setSelectedId}
+            onEditTask={openEdit}
+            onCreateTask={openCreate}
           />
         );
 
       case "Notes":
         return (
-          <PlaceholderPanel
-            title="Notes"
-            body="This should become the strategic scratchpad: roadmap notes, planning reminders, and decision logs tied to the workbench."
+          <NotesView
+            tasks={tasks}
+            selectedTask={selected}
+            selectedTaskId={selected?.id}
+            onSelectTask={setSelectedId}
+            onEditTask={openEdit}
+            onCreateTask={openCreate}
           />
         );
 
@@ -1143,6 +1810,75 @@ export default function WorkbenchView() {
 
   return (
     <div className="space-y-4">
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#070A10] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-100">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Private Preview
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
+                Owner Only
+              </span>
+            </div>
+
+            <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
+              Workbench Command Surface
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">
+              Plan, connect, schedule, review, and document work from one
+              operator view. This is the pre-launch control surface for your
+              reusable business platform.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SaveStateBadge value={saveState} />
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              <Plus className="h-4 w-4" />
+              Create Task
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-5">
+          <WorkbenchStatCard
+            label="Total"
+            value={summary.total}
+            helper="Tasks in system"
+          />
+          <WorkbenchStatCard
+            label="Overdue"
+            value={summary.overdue}
+            helper="Needs attention"
+            tone="rose"
+          />
+          <WorkbenchStatCard
+            label="This week"
+            value={summary.dueThisWeek}
+            helper="Due within 7 days"
+            tone="sky"
+          />
+          <WorkbenchStatCard
+            label="Review"
+            value={summary.review}
+            helper="Decision gate"
+            tone="amber"
+          />
+          <WorkbenchStatCard
+            label="Completed"
+            value={summary.completed}
+            helper="Proof of progress"
+            tone="emerald"
+          />
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-white/10 bg-[#070A10] p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <ShellTabs
@@ -1153,9 +1889,13 @@ export default function WorkbenchView() {
           />
 
           <div className="text-[11px] text-white/35">
-            Drag tabs to reorder. This first pass persists in this browser.
+            Drag tabs to reorder. Order persists in this browser.
           </div>
         </div>
+
+        <p className="mt-3 text-sm leading-6 text-white/50">
+          {TAB_DESCRIPTIONS[shellTab]}
+        </p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-[#070A10] p-4">

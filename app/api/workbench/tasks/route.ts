@@ -1,10 +1,48 @@
+import {
+  WorkbenchTaskPriority,
+  WorkbenchTaskStatus,
+} from "@prisma/client";
+
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require";
 import { jsonCreated, jsonError, jsonOk } from "@/lib/http/json";
 
+const VALID_STATUSES = new Set<string>(Object.values(WorkbenchTaskStatus));
+const VALID_PRIORITIES = new Set<string>(Object.values(WorkbenchTaskPriority));
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function toFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseStatus(value: unknown): WorkbenchTaskStatus {
+  if (typeof value === "string" && VALID_STATUSES.has(value)) {
+    return value as WorkbenchTaskStatus;
+  }
+
+  return WorkbenchTaskStatus.Open;
+}
+
+function parsePriority(value: unknown): WorkbenchTaskPriority {
+  if (typeof value === "string" && VALID_PRIORITIES.has(value)) {
+    return value as WorkbenchTaskPriority;
+  }
+
+  return WorkbenchTaskPriority.Medium;
+}
+
+function parseOptionalDate(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const date = new Date(String(value));
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export async function GET() {
@@ -29,11 +67,16 @@ export async function POST(req: Request) {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
 
-  let body: any;
+  let body: unknown;
+
   try {
     body = await req.json();
   } catch {
     return jsonError(400, "Invalid JSON body");
+  }
+
+  if (!isObject(body)) {
+    return jsonError(400, "JSON body must be an object");
   }
 
   const title = String(body.title ?? "").trim();
@@ -59,9 +102,9 @@ export async function POST(req: Request) {
       title,
       client,
       assignee,
-      status: body.status ?? "Open",
-      priority: body.priority ?? "Medium",
-      dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      status: parseStatus(body.status),
+      priority: parsePriority(body.priority),
+      dueDate: parseOptionalDate(body.dueDate),
       mapX: toFiniteNumber(body.mapX, defaultX),
       mapY: toFiniteNumber(body.mapY, defaultY),
       ownerId: auth.userId,

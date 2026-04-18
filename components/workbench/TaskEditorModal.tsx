@@ -19,6 +19,14 @@ const PRIORITIES: WorkbenchTaskPriority[] = ["Low", "Medium", "High"];
 
 type TaskUpsertPayload = Omit<WorkbenchTaskDTO, "id" | "mapX" | "mapY">;
 
+function errorToMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "string") return error;
+
+  return fallback;
+}
+
 export function TaskEditorModal({
   open,
   mode,
@@ -96,8 +104,8 @@ export function TaskEditorModal({
       }
 
       onClose();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to save.");
+    } catch (error: unknown) {
+      setErr(errorToMessage(error, "Failed to save."));
     } finally {
       setBusy(false);
     }
