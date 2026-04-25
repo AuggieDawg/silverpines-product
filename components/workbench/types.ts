@@ -7,6 +7,13 @@ export type WorkbenchTaskStatus =
 
 export type WorkbenchTaskPriority = "Low" | "Medium" | "High";
 
+export type WorkbenchGoalStatus =
+  | "Planned"
+  | "Active"
+  | "AtRisk"
+  | "Achieved"
+  | "Paused";
+
 export type WorkbenchTaskDTO = {
   id: string;
   title: string;
@@ -23,6 +30,24 @@ export type WorkbenchTaskLinkDTO = {
   id: string;
   sourceTaskId: string;
   targetTaskId: string;
+};
+
+export type WorkbenchGoalDTO = {
+  id: string;
+  title: string;
+  purpose: string;
+  successMetric: string | null;
+  targetDate: string | null;
+  status: WorkbenchGoalStatus;
+  priority: WorkbenchTaskPriority;
+  mapX: number;
+  mapY: number;
+};
+
+export type WorkbenchGoalTaskDTO = {
+  id: string;
+  goalId: string;
+  taskId: string;
 };
 
 export type WorkbenchShellTabId =

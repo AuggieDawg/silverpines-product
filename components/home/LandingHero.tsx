@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/workbench", label: "Workbench" },
   { href: "/owner", label: "ML Center" },
   { href: "/silverpines", label: "SilverPines" },
+  { href: "/stone", label: "Stone" },
   { href: "/api/auth/signin", label: "Sign In" },
 ];
 
@@ -23,6 +24,7 @@ const ACTIONS = [
   { href: "/workbench", label: "Open Workbench", kind: "secondary" as const },
   { href: "/owner", label: "Open ML Center", kind: "accent" as const },
   { href: "/silverpines", label: "SilverPines", kind: "secondary" as const },
+  { href: "/stone", label: "Stone", kind: "secondary" as const },
 ];
 
 const FEATURES: Feature[] = [
@@ -76,13 +78,17 @@ export default function LandingHero() {
           </div>
 
           <div className="relative z-10 flex flex-col gap-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-4">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-sm font-black tracking-[0.34em] text-white shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
-                  SL
-                </span>
+            <div className="relative h-[190px] overflow-visible lg:h-[170px]">
+              <img
+                src="/brand/syndicate-labs-pyramid-logo.png"
+                alt="Syndicate Labs"
+                className="pointer-events-none absolute -left-14 -top-20 z-0 h-[252px] w-[252px] object-contain drop-shadow-[0_0_54px_rgba(255,255,255,0.26)] sm:h-[288px] sm:w-[288px] lg:-left-16 lg:-top-24 lg:h-[324px] lg:w-[324px]"
+              />
 
-                <div>
+              <div className="relative z-10 grid h-full grid-cols-1 items-center gap-5 pt-24 sm:pt-28 lg:grid-cols-[260px_minmax(280px,1fr)_minmax(360px,auto)] lg:pt-0">
+                <div aria-hidden="true" />
+
+                <div className="mx-auto max-w-xl text-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/55">
                     Syndicate Labs
                   </p>
@@ -90,15 +96,15 @@ export default function LandingHero() {
                     Premium control surfaces for business, property, and machine-learning operations
                   </p>
                 </div>
-              </div>
 
-              <nav className="flex flex-wrap gap-2">
-                {NAV_LINKS.map((link) => (
-                  <Link key={link.href + link.label} href={link.href} className="glass-nav-pill">
-                    {link.label}
-                  </Link>
-                ))}
-              </nav>
+                <nav className="flex flex-wrap justify-center gap-2 lg:justify-end">
+                  {NAV_LINKS.map((link) => (
+                    <Link key={link.href + link.label} href={link.href} className="glass-nav-pill">
+                      {link.label}
+                    </Link>
+                  ))}
+                </nav>
+              </div>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1.18fr)_minmax(340px,0.82fr)] lg:items-start">

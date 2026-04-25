@@ -32,6 +32,13 @@ enum WorkbenchTaskPriority {
   High
 }
 
+enum WorkbenchGoalStatus {
+  Planned
+  Active
+  AtRisk
+  Achieved
+  Paused
+}
 
 enum RepairDeviceType {
   Phone
@@ -227,38 +234,45 @@ enum InspectionSetStatus {
 }
 
 model User {
-  id                         String                 @id @default(cuid())
-  email                      String                 @unique
-  emailVerified              DateTime?
-  name                       String?
-  image                      String?
-  role                       Role                   @default(USER)
-  profile                    Profile?
-  tasks                      Task[]
-  accounts                   Account[]
-  sessions                   Session[]
-  createdAt                  DateTime               @default(now())
-  updatedAt                  DateTime               @updatedAt
-  workbenchTasks             WorkbenchTask[]        @relation("WorkbenchTaskOwner")
-  workbenchTaskComments      WorkbenchTaskComment[] @relation("WorkbenchTaskCommentAuthor")
-  workbenchTaskLinks         WorkbenchTaskLink[]    @relation("WorkbenchTaskLinkOwner")
-  mapBoxes                   MapBox[]               @relation("UserMapBoxes")
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique
+  emailVerified         DateTime?
+  name                  String?
+  image                 String?
+  role                  Role                   @default(USER)
+  profile               Profile?
+  tasks                 Task[]
+  accounts              Account[]
+  sessions              Session[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  workbenchTasks        WorkbenchTask[]        @relation("WorkbenchTaskOwner")
+  workbenchTaskComments WorkbenchTaskComment[] @relation("WorkbenchTaskCommentAuthor")
+  workbenchTaskLinks    WorkbenchTaskLink[]    @relation("WorkbenchTaskLinkOwner")
+  workbenchGoals        WorkbenchGoal[]        @relation("WorkbenchGoalOwner")
+  workbenchGoalTasks    WorkbenchGoalTask[]    @relation("WorkbenchGoalTaskOwner")
+  mapBoxes              MapBox[]               @relation("UserMapBoxes")
 
-  repairCustomersOwned       RepairCustomer[]       @relation("RepairCustomerOwner")
-  repairDevicesOwned         RepairDevice[]         @relation("RepairDeviceOwner")
-  repairTicketsOwned         RepairTicket[]         @relation("RepairTicketOwner")
-  repairInventoryPartsOwned  InventoryPart[]        @relation("InventoryPartOwner")
-  repairInvoicesOwned        RepairInvoice[]        @relation("RepairInvoiceOwner")
-  repairDocumentsOwned       RepairDocument[]       @relation("RepairDocumentOwner")
-  repairPhotosUploaded       RepairPhoto[]          @relation("RepairPhotoUploadedBy")
-  repairNotesAuthored        RepairNote[]           @relation("RepairNoteAuthor")
-  repairAuditLogsAsActor     RepairAuditLog[]       @relation("RepairAuditLogActor")
+  repairCustomersOwned      RepairCustomer[] @relation("RepairCustomerOwner")
+  repairDevicesOwned        RepairDevice[]   @relation("RepairDeviceOwner")
+  repairTicketsOwned        RepairTicket[]   @relation("RepairTicketOwner")
+  repairInventoryPartsOwned InventoryPart[]  @relation("InventoryPartOwner")
+  repairInvoicesOwned       RepairInvoice[]  @relation("RepairInvoiceOwner")
+  repairDocumentsOwned      RepairDocument[] @relation("RepairDocumentOwner")
+  repairPhotosUploaded      RepairPhoto[]    @relation("RepairPhotoUploadedBy")
+  repairNotesAuthored       RepairNote[]     @relation("RepairNoteAuthor")
+  repairAuditLogsAsActor    RepairAuditLog[] @relation("RepairAuditLogActor")
 
-  managedPropertiesOwned     ManagedProperty[]      @relation("ManagedPropertyOwner")
+  fieldRigsOwned             FieldRig[]              @relation("FieldRigOwner")
+  fieldWellsOwned            FieldWell[]             @relation("FieldWellOwner")
+  fieldJobsOwned             FieldJob[]              @relation("FieldJobOwner")
+  fieldDailyReportsOwned     FieldDailyReport[]      @relation("FieldDailyReportOwner")
+  fieldInventoryItemsOwned   FieldInventoryItem[]    @relation("FieldInventoryItemOwner")
+  managedPropertiesOwned     ManagedProperty[]       @relation("ManagedPropertyOwner")
   managedPropertyMemberships ManagedPropertyMember[]
-  managedAuditLogsAsActor    ManagedAuditLog[]      @relation("ManagedAuditLogActor")
-  managedPhotosUploaded      ManagedPhoto[]         @relation("ManagedPhotoUploadedBy")
-  inspectionSetsCreated      InspectionSet[]        @relation("InspectionSetCreatedBy")
+  managedAuditLogsAsActor    ManagedAuditLog[]       @relation("ManagedAuditLogActor")
+  managedPhotosUploaded      ManagedPhoto[]          @relation("ManagedPhotoUploadedBy")
+  inspectionSetsCreated      InspectionSet[]         @relation("InspectionSetCreatedBy")
 }
 
 model Profile {
@@ -339,6 +353,7 @@ model WorkbenchTask {
   comments      WorkbenchTaskComment[]
   outgoingLinks WorkbenchTaskLink[]    @relation("WorkbenchTaskLinkSource")
   incomingLinks WorkbenchTaskLink[]    @relation("WorkbenchTaskLinkTarget")
+  goalLinks     WorkbenchGoalTask[]
 
   @@index([ownerId])
   @@index([ownerId, status])
@@ -371,6 +386,43 @@ model WorkbenchTaskComment {
   author    User?         @relation("WorkbenchTaskCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 }
 
+model WorkbenchGoal {
+  id            String                @id @default(cuid())
+  title         String
+  purpose       String
+  successMetric String?
+  targetDate    DateTime?
+  status        WorkbenchGoalStatus   @default(Planned)
+  priority      WorkbenchTaskPriority @default(Medium)
+  mapX          Float                 @default(80)
+  mapY          Float                 @default(80)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  ownerId       String?
+  owner         User?                 @relation("WorkbenchGoalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  taskLinks     WorkbenchGoalTask[]
+
+  @@index([ownerId])
+  @@index([ownerId, status])
+  @@index([ownerId, updatedAt])
+}
+
+model WorkbenchGoalTask {
+  id        String        @id @default(cuid())
+  ownerId   String
+  goalId    String
+  taskId    String
+  createdAt DateTime      @default(now())
+  owner     User          @relation("WorkbenchGoalTaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  goal      WorkbenchGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  task      WorkbenchTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, goalId, taskId])
+  @@index([ownerId])
+  @@index([goalId])
+  @@index([taskId])
+}
+
 model MapBox {
   id        String   @id @default(cuid())
   userId    String
@@ -385,9 +437,8 @@ model MapBox {
   @@index([userId, order])
 }
 
-
 model RepairCustomer {
-  id           String           @id @default(cuid())
+  id           String   @id @default(cuid())
   ownerId      String
   displayName  String
   companyName  String?
@@ -398,18 +449,18 @@ model RepairCustomer {
   city         String?
   state        String?
   postalCode   String?
-  country      String?          @default("US")
+  country      String?  @default("US")
   notes        String?
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  owner        User             @relation("RepairCustomerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  devices      RepairDevice[]
-  tickets      RepairTicket[]
-  invoices     RepairInvoice[]
-  documents    RepairDocument[]
-  auditLogs    RepairAuditLog[]
+  owner     User             @relation("RepairCustomerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  devices   RepairDevice[]
+  tickets   RepairTicket[]
+  invoices  RepairInvoice[]
+  documents RepairDocument[]
+  auditLogs RepairAuditLog[]
 
   @@index([ownerId])
   @@index([ownerId, displayName])
@@ -441,10 +492,10 @@ model RepairDevice {
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
-  owner                 User             @relation("RepairDeviceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  customer              RepairCustomer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  tickets               RepairTicket[]
-  photos                RepairPhoto[]
+  owner    User           @relation("RepairDeviceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer RepairCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tickets  RepairTicket[]
+  photos   RepairPhoto[]
 
   @@index([ownerId])
   @@index([customerId])
@@ -481,16 +532,16 @@ model RepairTicket {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
-  owner              User                 @relation("RepairTicketOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  customer           RepairCustomer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  device             RepairDevice         @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  notes              RepairNote[]
-  photos             RepairPhoto[]
-  partUsages         RepairPartUsage[]
-  quotes             RepairQuote[]
-  invoices           RepairInvoice[]
-  documents          RepairDocument[]
-  auditLogs          RepairAuditLog[]
+  owner      User              @relation("RepairTicketOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer   RepairCustomer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  device     RepairDevice      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  notes      RepairNote[]
+  photos     RepairPhoto[]
+  partUsages RepairPartUsage[]
+  quotes     RepairQuote[]
+  invoices   RepairInvoice[]
+  documents  RepairDocument[]
+  auditLogs  RepairAuditLog[]
 
   @@index([ownerId])
   @@index([customerId, receivedAt])
@@ -500,23 +551,23 @@ model RepairTicket {
 }
 
 model RepairNote {
-  id                String       @id @default(cuid())
+  id                String   @id @default(cuid())
   ticketId          String
   authorUserId      String?
   body              String
-  isCustomerVisible Boolean      @default(false)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  isCustomerVisible Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  ticket            RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorUser        User?        @relation("RepairNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  ticket     RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorUser User?        @relation("RepairNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, createdAt])
   @@index([authorUserId, createdAt])
 }
 
 model InventoryPart {
-  id             String          @id @default(cuid())
+  id             String   @id @default(cuid())
   ownerId        String
   sku            String?
   name           String
@@ -525,17 +576,17 @@ model InventoryPart {
   compatibleWith String?
   supplierName   String?
   supplierUrl    String?
-  quantityOnHand Int             @default(0)
+  quantityOnHand Int      @default(0)
   reorderPoint   Int?
-  unitCost       Decimal?        @db.Decimal(10, 2)
-  unitPrice      Decimal?        @db.Decimal(10, 2)
+  unitCost       Decimal? @db.Decimal(10, 2)
+  unitPrice      Decimal? @db.Decimal(10, 2)
   notes          String?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  owner          User            @relation("InventoryPartOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  usages         RepairPartUsage[]
+  owner  User              @relation("InventoryPartOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usages RepairPartUsage[]
 
   @@index([ownerId])
   @@index([ownerId, name])
@@ -544,18 +595,18 @@ model InventoryPart {
 }
 
 model RepairPartUsage {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   ticketId  String
   partId    String
-  quantity  Int          @default(1)
-  unitCost  Decimal?     @db.Decimal(10, 2)
-  unitPrice Decimal?     @db.Decimal(10, 2)
+  quantity  Int      @default(1)
+  unitCost  Decimal? @db.Decimal(10, 2)
+  unitPrice Decimal? @db.Decimal(10, 2)
   notes     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  ticket    RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  part      InventoryPart @relation(fields: [partId], references: [id], onDelete: Restrict)
+  ticket RepairTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  part   InventoryPart @relation(fields: [partId], references: [id], onDelete: Restrict)
 
   @@index([ticketId])
   @@index([partId])
@@ -576,7 +627,7 @@ model RepairQuote {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  ticket      RepairTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId, createdAt])
   @@index([status])
@@ -601,9 +652,9 @@ model RepairInvoice {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  owner         User                 @relation("RepairInvoiceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  customer      RepairCustomer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  ticket        RepairTicket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  owner    User           @relation("RepairInvoiceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer RepairCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket   RepairTicket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
   @@index([customerId, createdAt])
@@ -627,9 +678,9 @@ model RepairDocument {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  owner            User             @relation("RepairDocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  customer         RepairCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  ticket           RepairTicket?    @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  owner    User            @relation("RepairDocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  customer RepairCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket   RepairTicket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([ownerId, category])
   @@index([customerId, uploadedAt])
@@ -654,9 +705,9 @@ model RepairPhoto {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
-  ticket           RepairTicket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  device           RepairDevice?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  uploadedByUser   User?               @relation("RepairPhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  ticket         RepairTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  device         RepairDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  uploadedByUser User?         @relation("RepairPhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, uploadedAt])
   @@index([deviceId, uploadedAt])
@@ -664,7 +715,7 @@ model RepairPhoto {
 }
 
 model RepairAuditLog {
-  id          String          @id @default(cuid())
+  id          String   @id @default(cuid())
   customerId  String?
   ticketId    String?
   actorUserId String?
@@ -672,11 +723,11 @@ model RepairAuditLog {
   entityId    String?
   action      String
   metadata    Json?
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime @default(now())
 
-  customer    RepairCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  ticket      RepairTicket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
-  actorUser   User?           @relation("RepairAuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  customer  RepairCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket    RepairTicket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  actorUser User?           @relation("RepairAuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([customerId, createdAt])
   @@index([ticketId, createdAt])
@@ -1101,4 +1152,170 @@ model ManagedAuditLog {
 
   @@index([propertyId, createdAt])
   @@index([actorUserId, createdAt])
+}
+
+enum FieldRigStatus {
+  Available
+  Moving
+  RiggingUp
+  Working
+  WaitingOnParts
+  WaitingOnOperator
+  DownForRepair
+  Standby
+  RiggingDown
+  Complete
+}
+
+enum FieldJobStatus {
+  Planned
+  Active
+  WaitingOnParts
+  WaitingOnOperator
+  DownForRepair
+  Completed
+  Cancelled
+}
+
+enum FieldJobPriority {
+  Low
+  Medium
+  High
+  Critical
+}
+
+model FieldRig {
+  id              String         @id @default(cuid())
+  ownerId         String
+  name            String
+  rigNumber       String?
+  status          FieldRigStatus @default(Standby)
+  currentOperator String?
+  currentWellId   String?
+  locationLabel   String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  owner          User                 @relation("FieldRigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  currentWell    FieldWell?           @relation("FieldRigCurrentWell", fields: [currentWellId], references: [id], onDelete: SetNull)
+  jobs           FieldJob[]           @relation("FieldJobRig")
+  dailyReports   FieldDailyReport[]   @relation("FieldDailyReportRig")
+  inventoryItems FieldInventoryItem[] @relation("FieldInventoryItemRig")
+
+  @@index([ownerId])
+  @@index([ownerId, status])
+  @@index([currentWellId])
+  @@index([updatedAt])
+}
+
+model FieldWell {
+  id            String   @id @default(cuid())
+  ownerId       String
+  operatorName  String
+  wellName      String
+  wellNumber    String?
+  apiNumber     String?
+  leaseName     String?
+  locationLabel String?
+  county        String?
+  state         String?  @default("UT")
+  directions    String?
+  hazards       String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner        User               @relation("FieldWellOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  assignedRigs FieldRig[]         @relation("FieldRigCurrentWell")
+  jobs         FieldJob[]         @relation("FieldJobWell")
+  dailyReports FieldDailyReport[] @relation("FieldDailyReportWell")
+
+  @@index([ownerId])
+  @@index([ownerId, operatorName])
+  @@index([ownerId, wellName])
+  @@index([apiNumber])
+}
+
+model FieldJob {
+  id             String           @id @default(cuid())
+  ownerId        String
+  rigId          String?
+  wellId         String?
+  jobNumber      String           @unique
+  operatorName   String
+  jobType        String
+  status         FieldJobStatus   @default(Planned)
+  priority       FieldJobPriority @default(Medium)
+  objective      String?
+  currentSummary String?
+  blocker        String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  owner        User               @relation("FieldJobOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  rig          FieldRig?          @relation("FieldJobRig", fields: [rigId], references: [id], onDelete: SetNull)
+  well         FieldWell?         @relation("FieldJobWell", fields: [wellId], references: [id], onDelete: SetNull)
+  dailyReports FieldDailyReport[] @relation("FieldDailyReportJob")
+
+  @@index([ownerId])
+  @@index([rigId])
+  @@index([wellId])
+  @@index([ownerId, status])
+  @@index([ownerId, updatedAt])
+}
+
+model FieldDailyReport {
+  id            String   @id @default(cuid())
+  ownerId       String
+  rigId         String?
+  wellId        String?
+  jobId         String?
+  reportDate    DateTime @default(now())
+  workPerformed String?
+  currentStatus String?
+  downtime      String?
+  safetyNotes   String?
+  partsUsed     String?
+  partsNeeded   String?
+  tomorrowPlan  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner User       @relation("FieldDailyReportOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  rig   FieldRig?  @relation("FieldDailyReportRig", fields: [rigId], references: [id], onDelete: SetNull)
+  well  FieldWell? @relation("FieldDailyReportWell", fields: [wellId], references: [id], onDelete: SetNull)
+  job   FieldJob?  @relation("FieldDailyReportJob", fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([rigId, reportDate])
+  @@index([wellId, reportDate])
+  @@index([jobId, reportDate])
+  @@index([reportDate])
+}
+
+model FieldInventoryItem {
+  id             String   @id @default(cuid())
+  ownerId        String
+  rigId          String?
+  name           String
+  category       String?
+  quantityOnHand Int      @default(0)
+  reorderPoint   Int?
+  unit           String?
+  supplier       String?
+  isCritical     Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  owner User      @relation("FieldInventoryItemOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  rig   FieldRig? @relation("FieldInventoryItemRig", fields: [rigId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([rigId])
+  @@index([ownerId, name])
+  @@index([quantityOnHand])
 }

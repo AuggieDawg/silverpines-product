@@ -49,7 +49,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
 
-  const [tasks, links] = await Promise.all([
+  const [tasks, links, goals, goalTasks] = await Promise.all([
     prisma.workbenchTask.findMany({
       where: { ownerId: auth.userId },
       orderBy: { updatedAt: "desc" },
@@ -58,9 +58,17 @@ export async function GET() {
       where: { ownerId: auth.userId },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.workbenchGoal.findMany({
+      where: { ownerId: auth.userId },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.workbenchGoalTask.findMany({
+      where: { ownerId: auth.userId },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
-  return jsonOk({ tasks, links });
+  return jsonOk({ tasks, links, goals, goalTasks });
 }
 
 export async function POST(req: Request) {
